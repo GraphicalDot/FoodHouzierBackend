@@ -5,7 +5,6 @@ import os
 from os.path import dirname, abspath, exists
 
 base_dir = dirname(dirname(abspath(__file__)))
-print base_dir
 import platform 
 
 
@@ -13,9 +12,33 @@ import platform
 
 
 if platform.system() == "Darwin":
-        path_jar_files = "/Users/kaali/Programs/Python/ProjectHouzier/stanford-corenlp-python"
+        path_jar_files = "/Users/kaali/Programs/Python/FoodHouzierBackend/stanford-corenlp-python"
 else:
-        path_jar_files = "/home/kaali/Programs/Python/ProjectHouzier/stanford-corenlp-python"
+        path_jar_files = "/home/kaali/Programs/Python/FoodHouzierBackend/stanford-corenlp-python"
+
+
+
+
+class SolveEncoding(object):
+        def __init__(self):
+                pass
+
+
+        @staticmethod
+        def preserve_ascii(obj):
+                if not isinstance(obj, unicode):
+                        obj = unicode(obj)
+                obj = obj.encode("ascii", "xmlcharrefreplace")
+                return obj
+
+        @staticmethod
+        def to_unicode_or_bust(obj, encoding='utf-8'):
+                if isinstance(obj, basestring):
+                        if not isinstance(obj, unicode):
+                                obj = unicode(obj, encoding)
+                return obj
+
+
 
 
 class cd:
@@ -43,12 +66,12 @@ if not exists("%s/CompiledModels"%base_dir):
 
 
 
-SentimentClassifiersPath = "%s/CompiledModels/SentimentClassifiers"%base_dir
-TagClassifiersPath = "%s/CompiledModels/TagClassifiers"%base_dir
-FoodClassifiersPath = "%s/CompiledModels/FoodClassifiers"%base_dir
-ServiceClassifiersPath = "%s/CompiledModels/ServiceClassifiers"%base_dir
-AmbienceClassifiersPath = "%s/CompiledModels/AmbienceClassifiers"%base_dir
-CostClassifiersPath = "%s/CompiledModels/CostClassifiers"%base_dir
+SentimentClassifiersPath = lambda base_dir: "%s/CompiledModels/SentimentClassifiers"%base_dir
+TagClassifiersPath = lambda base_dir: "%s/CompiledModels/TagClassifiers"%base_dir
+FoodClassifiersPath = lambda base_dir: "%s/CompiledModels/FoodClassifiers"%base_dir
+ServiceClassifiersPath = lambda base_dir: "%s/CompiledModels/ServiceClassifiers"%base_dir
+AmbienceClassifiersPath = lambda base_dir: "%s/CompiledModels/AmbienceClassifiers"%base_dir
+CostClassifiersPath = lambda base_dir: "%s/CompiledModels/CostClassifiers"%base_dir
 
 
 
@@ -86,8 +109,18 @@ reviews_data = dict(
 )
 
 reviews_connection = pymongo.MongoClient(reviews_data["ip"], reviews_data["port"])
-reviews = reviews_connection[reviews_data["db"]][reviews_data["sentiment"]]
-eateries = reviews_connection[reviews_data["db"]][reviews_data["sentiment"]]
+reviews = reviews_connection[reviews_data["db"]][reviews_data["reviews"]]
+eateries = reviews_connection[reviews_data["db"]][reviews_data["eateries"]]
+
+results_data = dict(
+        ip = "localhost",
+        port = 27017,
+        db = "results",
+        reviews = "reviews",
+        eateries = "eateries",
+        clipped_eatery = "clipped_eatery",
+        junk_nps = "junk_nps",
+        )
 
 result_connection = pymongo.MongoClient(results_data["ip"], results_data["port"])
 r_reviews = result_connection[results_data["db"]][results_data["reviews"]]
@@ -117,16 +150,6 @@ training_data = dict(
         cost = "training_cost_collection",
         tag = "training_tag_collection",
 )
-
-results_data = dict(
-        ip = "localhost",
-        port = 27017,
-        db = "results",
-        reviews = "reviews",
-        eateries = "eateries",
-        clippe_deatery = "clipped_eatery",
-        junk_nps = "junk_nps",
-        )
 
 
 celery = dict(
@@ -159,9 +182,11 @@ corenlp_collection = t_connection[corenlp_data["db"]][corenlp_data["sentiment"]]
 
 
 import sys
+print corenlp_data["path_jar_files"]
 sys.path.append(corenlp_data["path_jar_files"])
-import jsonrpc
-server = jsonrpc.ServerProxy(jsonrpc.JsonRpc20(),
+with cd(corenlp_data["path_jar_files"]):
+    import jsonrpc
+    corenlpserver = jsonrpc.ServerProxy(jsonrpc.JsonRpc20(),
                              jsonrpc.TransportTcpIp(addr=(corenlp_data["ip"],
                                                           corenlp_data["port"]
                                                           )))

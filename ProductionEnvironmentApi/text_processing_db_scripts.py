@@ -30,13 +30,14 @@ class MongoScriptsReviews(object):
         """
 
 
+
+
         @staticmethod
         def insert_eatery_into_results_collection(eatery_id):
                 """
                 First time when eatery will bei nserted into the r_eateries
                 By default, if you are running a eatery, this will flush the eatery and update the result
                 again 
-                """
                
                 try:
                         google = r_eateries.find_one({"eatery_id": eatery_id}).get("google") 
@@ -45,6 +46,7 @@ class MongoScriptsReviews(object):
                         google = None
                 
                 print google
+                """
                 r_eateries.remove({"eatery_id": eatery_id}) 
 
                 eatery = eateries.find_one({"eatery_id": eatery_id}, {"_id": False, "__eatery_id": True, "eatery_id": True, "eatery_name": True, \
@@ -63,7 +65,7 @@ class MongoScriptsReviews(object):
                 eatery.update({"location": location})
 
                 print r_eateries.insert(eatery)
-                return google 
+                return 
 
         @staticmethod
         def reviews_with_text(reviews_ids):
