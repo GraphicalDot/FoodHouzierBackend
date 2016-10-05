@@ -52,29 +52,29 @@ CostClassifiersPath = "%s/CompiledModels/CostClassifiers"%base_dir
 
 
 
-SentimentVocabularyFileName = "lk_vectorizer_sentiment.pkl"
-SentimentFeatureFileName = "sentiment_features.pkl"
-SentimentClassifierFileName = "svmlk_sentiment_classifier.pkl"
+SentimentVocabularyFileName = "lk_vectorizer_sentiment.joblib"
+SentimentFeatureFileName = "sentiment_features.joblib"
+SentimentClassifierFileName = "svmlk_sentiment_classifier.joblib"
 
-TagVocabularyFileName = "lk_vectorizer_tag.pkl"
-TagFeatureFileName = "tag_features_pca_selectkbest.pkl"
-TagClassifierFileName = "svmlk_tag_classifier.pkl"
+TagVocabularyFileName = "lk_vectorizer_tag.joblib"
+TagFeatureFileName = "tag_features_pca_selectkbest.joblib"
+TagClassifierFileName = "svmlk_tag_classifier.joblib"
 
-FoodVocabularyFileName = "lk_vectorizer_food.pkl"
-FoodFeatureFileName = "food_features_pca_selectkbest.pkl"
-FoodClassifierFileName = "svmlk_food_classifier.pkl" 
+FoodVocabularyFileName = "lk_vectorizer_food.joblib"
+FoodFeatureFileName = "food_features_pca_selectkbest.joblib"
+FoodClassifierFileName = "svmlk_food_classifier.joblib" 
 
-ServiceVocabularyFileName =  "lk_vectorizer_service.pkl"
-ServiceFeatureFileName = "service_features_pca_selectkbest.pkl"
-ServiceClassifierFileName = "svmlk_service_classifier.pkl"
+ServiceVocabularyFileName =  "lk_vectorizer_service.joblib"
+ServiceFeatureFileName = "service_features_pca_selectkbest.joblib"
+ServiceClassifierFileName = "svmlk_service_classifier.joblib"
 
-CostVocabularyFileName = "lk_vectorizer_cost.pkl"
-CostFeatureFileName =  "cost_features_pca_selectkbest.pkl"
-CostClassifierFileName = "svmlk_cost_classifier.pkl"
+CostVocabularyFileName = "lk_vectorizer_cost.joblib"
+CostFeatureFileName =  "cost_features_pca_selectkbest.joblib"
+CostClassifierFileName = "svmlk_cost_classifier.joblib"
 
-AmbienceVocabularyFileName = "lk_vectorizer_ambience.pkl"
-AmbienceFeatureFileName = "ambience_features_pca_selectkbest.pkl"
-AmbienceClassifierFileName = "svmlk_ambience_classifier.pkl"
+AmbienceVocabularyFileName = "lk_vectorizer_ambience.joblib"
+AmbienceFeatureFileName = "ambience_features_pca_selectkbest.joblib"
+AmbienceClassifierFileName = "svmlk_ambience_classifier.joblib"
 
 reviews_data = dict(
         ip = "localhost",
@@ -84,6 +84,16 @@ reviews_data = dict(
         reviews = "ZomatoReviews",
         users = "ZomatoUsers",
 )
+
+reviews_connection = pymongo.MongoClient(reviews_data["ip"], reviews_data["port"])
+reviews = reviews_connection[reviews_data["db"]][reviews_data["sentiment"]]
+eateries = reviews_connection[reviews_data["db"]][reviews_data["sentiment"]]
+
+result_connection = pymongo.MongoClient(results_data["ip"], results_data["port"])
+r_reviews = result_connection[results_data["db"]][results_data["reviews"]]
+r_eateries = result_connection[results_data["db"]][results_data["eateries"]]
+r_clip_eatery=result_connection[results_data["db"]][results_data["clipped_eatery"]]
+r_junk_nps=result_connection[results_data["db"]][results_data["junk_nps"]]
 
 
 
@@ -113,8 +123,10 @@ results_data = dict(
         port = 27017,
         db = "results",
         reviews = "reviews",
-        eateries = "eateries"
-    )
+        eateries = "eateries",
+        clippe_deatery = "clipped_eatery",
+        junk_nps = "junk_nps",
+        )
 
 
 celery = dict(
@@ -140,6 +152,10 @@ service_collection = t_connection[training_data["db"]][training_data["service"]]
 cost_collection = t_connection[training_data["db"]][training_data["cost"]]
 ambience_collection = t_connection[training_data["db"]][training_data["ambience"]]
 corenlp_collection = t_connection[corenlp_data["db"]][corenlp_data["sentiment"]]
+
+
+
+
 
 
 import sys

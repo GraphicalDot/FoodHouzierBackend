@@ -10,43 +10,42 @@ import sys
 import warnings
 import itertools
 import geocoder
-
+import blessings
 
 file_path = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(file_path)
 sys.path.append(parent_dir)
 
 os.chdir(parent_dir)
-from connections import reviews, eateries, reviews_results_collection, eateries_results_collection, discarded_nps_collection, bcolors, short_eatery_result_collection
+from configs import reviews, eateries, r_reviews, r_eateries, r_junk_nps, r_clip_eatery
 os.chdir(file_path)
+Terminal = blessings.Terminal()
 
 
 class MongoScriptsReviews(object):
         """
-        if eatery_id not present in the eateries_results_collection implies processing for the first time
+        if eatery_id not present in the r_eateries implies processing for the first time
         if eatery_id is present
                 if key google is present or its value 0
-
-
         """
 
 
         @staticmethod
         def insert_eatery_into_results_collection(eatery_id):
                 """
-                First time when eatery will bei nserted into the eateries_results_collection
+                First time when eatery will bei nserted into the r_eateries
                 By default, if you are running a eatery, this will flush the eatery and update the result
                 again 
                 """
                
                 try:
-                        google = eateries_results_collection.find_one({"eatery_id": eatery_id}).get("google") 
+                        google = r_eateries.find_one({"eatery_id": eatery_id}).get("google") 
                 except Exception as e:
                         print e
                         google = None
                 
                 print google
-                eateries_results_collection.remove({"eatery_id": eatery_id}) 
+                r_eateries.remove({"eatery_id": eatery_id}) 
 
                 eatery = eateries.find_one({"eatery_id": eatery_id}, {"_id": False, "__eatery_id": True, "eatery_id": True, "eatery_name": True, \
                         "eatery_address": True, "location": True, "eatery_area_or_city": True, "eatery_cost": True, "eatery_url": True})
@@ -63,7 +62,7 @@ class MongoScriptsReviews(object):
                         eateries.update({"eatery_id": eatery_id}, {"$set": {"location": location}}, upsert=False)
                 eatery.update({"location": location})
 
-                print eateries_results_collection.insert(eatery)
+                print r_eateries.insert(eatery)
                 return google 
 
         @staticmethod
@@ -87,7 +86,7 @@ class MongoScriptsReviews(object):
                         "converted_epoch": True, "review_time": True})    
                 kwargs.update({"review_text": review.get("review_text"), "review_time": review.get("review_time")})
 
-                print reviews_results_collection.update({"review_id": review_id}, {"$set": kwargs}, upsert=True, multi=False)
+                print r_reviews.update({"review_id": review_id}, {"$set": kwargs}, upsert=True, multi=False)
                 
                 return 
 
@@ -95,15 +94,15 @@ class MongoScriptsReviews(object):
 
         @staticmethod
         def flush_eatery(eatery_id):
-                print eateries_results_collection.remove({"eatery_id": eatery_id})
-                print reviews_results_collection.remove({"eatery_id": eatery_id})
+                print r_eateries.remove({"eatery_id": eatery_id})
+                print r_reviews.remove({"eatery_id": eatery_id})
                 return 
 
 
         @staticmethod
         def update_eatery_places_cusines(eatery_id, places, cuisines):
             if places or cuisines:    
-                    eateries_results_collection.update({"eatery_id": eatery_id}, {"$push": \
+                    r_eateries.update({"eatery_id": eatery_id}, {"$push": \
                         {"places": places, "cuisines": cuisines }}, upsert=False)
 
        
@@ -112,7 +111,7 @@ class MongoScriptsReviews(object):
         def review_ids_to_be_processed(eatery_id):
                 total_reviews = [e.get("review_id") for e in reviews.find({"eatery_id": eatery_id}, {"review_id": True, "_id": False})]
 
-                reviews_in_results = [e.get("review_id") for e in reviews_results_collection.find({"eatery_id": eatery_id}, {"review_id": True, "_id": False})]
+                reviews_in_results = [e.get("review_id") for e in r_reviews.find({"eatery_id": eatery_id}, {"review_id": True, "_id": False})]
                 review_ids = list(set.symmetric_difference(set(total_reviews), set(reviews_in_results)))
                 return review_ids
 
@@ -149,7 +148,7 @@ class MongoScriptsDoClusters(object):
                 This returns all the noun phrases that already have been processed for
                 teh eatery id 
                 """
-                return eateries_results_collection.find_one({"eatery_id": self.eatery_id}, 
+                return r_eateries.find_one({"eatery_id": self.eatery_id}, 
                             {"_id": False, noun_phrases: True}).get("noun_phrases")
 
         def old_considered_ids(self):
@@ -160,7 +159,7 @@ class MongoScriptsDoClusters(object):
                 nd these review ids has been stored under old_considered_ids
                 """
                 try:
-                        old_considered_ids = eateries_results_collection.find_one({"eatery_id": self.eatery_id}, {"_id": False, 
+                        old_considered_ids = r_eateries.find_one({"eatery_id": self.eatery_id}, {"_id": False, 
                             "old_considered_ids": True}).get("old_considered_ids")
                 except Exception as e:
                         print e
@@ -169,7 +168,7 @@ class MongoScriptsDoClusters(object):
                         
 
         def places_mentioned_for_eatery(self):
-                result = eateries_results_collection.find_one({"eatery_id": self.eatery_id}, {"_id": False, 
+                result = r_eateries.find_one({"eatery_id": self.eatery_id}, {"_id": False, 
                             "processed_reviews": True}).get("places")
 
                 if result:
@@ -179,33 +178,33 @@ class MongoScriptsDoClusters(object):
 
 
         def processed_reviews(self):
-                return eateries_results_collection.find_one({"eatery_id": self.eatery_id}, {"_id": False, 
+                return r_eateries.find_one({"eatery_id": self.eatery_id}, {"_id": False, 
                             "processed_reviews": True}).get("processed_reviews")
 
         def fetch_reviews(self, category, review_list=None):
                 if not review_list:
-                        review_list = [review.get("review_id") for review in reviews_results_collection.find({"eatery_id": self.eatery_id})]
+                        review_list = [review.get("review_id") for review in r_reviews.find({"eatery_id": self.eatery_id})]
 
 
                 if category == "food":
-                        food = [reviews_results_collection.find_one({"review_id": review_id})["food_result"] for review_id in  review_list]
+                        food = [r_reviews.find_one({"review_id": review_id})["food_result"] for review_id in  review_list]
                         flatten_food = list(itertools.chain(*food))
                         
                         return flatten_food          
                         
                 
                 if category == "overall":
-                        result = [reviews_results_collection.find_one({"review_id": review_id})[category] for review_id in review_list]
+                        result = [r_reviews.find_one({"review_id": review_id})[category] for review_id in review_list]
                         result = list(itertools.chain(*result))
                         return result
                     
                 if category == "menu_result":
-                        result = [reviews_results_collection.find_one({"review_id": review_id})[category] for review_id in review_list]
+                        result = [r_reviews.find_one({"review_id": review_id})[category] for review_id in review_list]
                         result = list(itertools.chain(*result))
                         return result
        
                     
-                result = [reviews_results_collection.find_one({"review_id": review_id})[category] for review_id in review_list]
+                result = [r_reviews.find_one({"review_id": review_id})[category] for review_id in review_list]
                 
                 result = list(itertools.chain(*result))
                 #[[u'super-positive', u'ambience-overall'], [u'super-positive', u'ambience-overall'], 
@@ -220,20 +219,20 @@ class MongoScriptsDoClusters(object):
                         excluded_nps = np_result["excluded_nps"]
                         dropped_nps = np_result["dropped_nps"]
 
-                        ##to be inserted in short_eatery_result_collection
+                        ##to be inserted in r_clip_eatery
                         
                         try:
-                                eateries_results_collection.update({"eatery_id": self.eatery_id}, {"$set": \
+                                r_eateries.update({"eatery_id": self.eatery_id}, {"$set": \
                                         {"food.{0}".format(category): nps[0: 25]}}, upsert=False)
                                 
-                                eateries_results_collection.update({"eatery_id": self.eatery_id}, {"$set": \
+                                r_eateries.update({"eatery_id": self.eatery_id}, {"$set": \
                                         {"food.more_{0}".format(category): nps[25:]}}, upsert=False)
                                 
                                 
                                 
-                                eateries_results_collection.update({"eatery_id": self.eatery_id}, {"$set": \
+                                r_eateries.update({"eatery_id": self.eatery_id}, {"$set": \
                                         {"dropped_nps": dropped_nps}}, upsert=False) 
-                                discarded_nps_collection.update({"eatery_id": self.eatery_id}, \
+                                r_junk_nps.update({"eatery_id": self.eatery_id}, \
                                         {"$set": {"excluded_nps": excluded_nps}}, upsert=True) 
                         except Exception as e:
                                 print e
@@ -246,7 +245,7 @@ class MongoScriptsDoClusters(object):
                                 dish.pop("timeline")
                                 short_nps.append(dish)
                                 
-                        short_eatery_result_collection.update({"eatery_id": self.eatery_id}, {"$set": \
+                        r_clip_eatery.update({"eatery_id": self.eatery_id}, {"$set": \
                                         {"food.{0}".format(category): short_nps}}, upsert=False)
 
 
@@ -255,7 +254,7 @@ class MongoScriptsDoClusters(object):
            
                 ##this is meant if category overall-food
                 try:    
-                        eateries_results_collection.update({"eatery_id": self.eatery_id}, {"$set": {
+                        r_eateries.update({"eatery_id": self.eatery_id}, {"$set": {
                         "food.{0}".format(category): np_result}}, upsert=False)
                         
                 except Exception as e:
@@ -266,16 +265,16 @@ class MongoScriptsDoClusters(object):
                 if category == "food":
                         if not sub_category:
                                 raise StandardError("Food Category shall be provided to fecth nps")
-                        return eateries_results_collection.find_one({"eatery_id": self.eatery_id}).get(category).get(sub_category)
+                        return r_eateries.find_one({"eatery_id": self.eatery_id}).get(category).get(sub_category)
                         
-                return eateries_results_collection.find_one({"eatery_id": self.eatery_id}).get(category)
+                return r_eateries.find_one({"eatery_id": self.eatery_id}).get(category)
 
         def update_nps(self, category, category_nps):
                 """
                 Update new noun phrases to the eatery category list
                 """
                 try:
-                    eateries_results_collection.update({"eatery_id": self.eatery_id}, {"$set": {category:
+                    r_eateries.update({"eatery_id": self.eatery_id}, {"$set": {category:
                     category_nps}}, upsert=False)
                 except Exception as e:
                     raise StandardError(e)
@@ -284,12 +283,12 @@ class MongoScriptsDoClusters(object):
                 
                 if category == "overall":
                         category_nps.pop("timeline")
-                        short_eatery_result_collection.update({"eatery_id": self.eatery_id}, {"$set": {category: category_nps}}, upsert= False)
+                        r_clip_eatery.update({"eatery_id": self.eatery_id}, {"$set": {category: category_nps}}, upsert= False)
                         return 
 
                 if category == "menu":
                         category_nps.pop("timeline")
-                        short_eatery_result_collection.update({"eatery_id": self.eatery_id}, {"$set": {category: category_nps}}, upsert= False)
+                        r_clip_eatery.update({"eatery_id": self.eatery_id}, {"$set": {category: category_nps}}, upsert= False)
                         return 
                 
                 
@@ -307,7 +306,7 @@ class MongoScriptsDoClusters(object):
                         sub_category_data = __dict[1]
 
                         sub_category_data.pop("timeline")
-                        short_eatery_result_collection.update({"eatery_id": self.eatery_id}, {"$set": {"%s.%s"%(category, sub_category): sub_category_data}}, upsert= False)
+                        r_clip_eatery.update({"eatery_id": self.eatery_id}, {"$set": {"%s.%s"%(category, sub_category): sub_category_data}}, upsert= False)
                         
 
                 except Exception as e:
