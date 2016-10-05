@@ -50,7 +50,9 @@ class MongoScriptsReviews(object):
                 r_eateries.remove({"eatery_id": eatery_id}) 
 
                 eatery = eateries.find_one({"eatery_id": eatery_id}, {"_id": False, "__eatery_id": True, "eatery_id": True, "eatery_name": True, \
-                        "eatery_address": True, "location": True, "eatery_area_or_city": True, "eatery_cost": True, "eatery_url": True})
+                        "eatery_address": True, "location": True,\
+                        "eatery_area_or_city": True, "eatery_cost": True,\
+                        "pictures": True, "eatery_url": True})
 
                 latitude, longitude = eatery.pop("location")
                 latitude, longitude = float(latitude), float(longitude)
@@ -68,16 +70,15 @@ class MongoScriptsReviews(object):
                 return 
 
         @staticmethod
-        def reviews_with_text(reviews_ids):
+        def reviews_with_text(reviews_ids, eatery_id):
                 review_list = list()
                 for review_id in reviews_ids:
                         review = reviews.find_one({"review_id": review_id})
                         review_text, review_time = review.get("review_text"), review.get("review_time")
                         
                         if bool(review_text) and review_text != " ":
-                                review_list.append((review_id, review_text, review_time))
+                                review_list.append((review_id, review_text, review_time, eatery_id))
                 print len(review_list)
-                print review_list
                 return review_list
 
         @staticmethod
@@ -170,8 +171,7 @@ class MongoScriptsDoClusters(object):
                         
 
         def places_mentioned_for_eatery(self):
-                result = r_eateries.find_one({"eatery_id": self.eatery_id}, {"_id": False, 
-                            "processed_reviews": True}).get("places")
+                result = r_eateries.find_one({"eatery_id": self.eatery_id}, {"places": True}).get("places")
 
                 if result:
                     return [place_name for place_name in result if place_name] 
@@ -246,9 +246,9 @@ class MongoScriptsDoClusters(object):
                                 dish.pop("similar")
                                 dish.pop("timeline")
                                 short_nps.append(dish)
-                                
+                        print "udpating clip eatery with top three dishes data"
                         r_clip_eatery.update({"eatery_id": self.eatery_id}, {"$set": \
-                                        {"food.{0}".format(category): short_nps}}, upsert=False)
+                                        {"food.{0}".format(category):short_nps}}, upsert=True)
 
 
                         return
@@ -275,6 +275,7 @@ class MongoScriptsDoClusters(object):
                 """
                 Update new noun phrases to the eatery category list
                 """
+                print "Updating nps for %s"%category
                 try:
                     r_eateries.update({"eatery_id": self.eatery_id}, {"$set": {category:
                     category_nps}}, upsert=False)
@@ -284,19 +285,24 @@ class MongoScriptsDoClusters(object):
                 
                 
                 if category == "overall":
+                        print "Updating nps for %s in clip_eatery"%category
                         category_nps.pop("timeline")
-                        r_clip_eatery.update({"eatery_id": self.eatery_id}, {"$set": {category: category_nps}}, upsert= False)
+                        r_clip_eatery.update({"eatery_id": self.eatery_id},
+                                {"$set": {category: category_nps}}, upsert=False)
                         return 
 
                 if category == "menu":
+                        print "Updating nps for %s in clip_eatery"%category
                         category_nps.pop("timeline")
-                        r_clip_eatery.update({"eatery_id": self.eatery_id}, {"$set": {category: category_nps}}, upsert= False)
+                        r_clip_eatery.update({"eatery_id": self.eatery_id},
+                                {"$set": {category: category_nps}}, upsert=False)
                         return 
                 
                 
                 try:
                         ##this is the dubcategory dict which has the highest total sentiment int he category
                         modifed_category_nps = dict()
+                        print "Updating nps for %s in clip_eatery"%category
                         for (key, value) in category_nps.iteritems():
                                     if key.endswith("null"):
                                             pass
@@ -308,7 +314,9 @@ class MongoScriptsDoClusters(object):
                         sub_category_data = __dict[1]
 
                         sub_category_data.pop("timeline")
-                        r_clip_eatery.update({"eatery_id": self.eatery_id}, {"$set": {"%s.%s"%(category, sub_category): sub_category_data}}, upsert= False)
+                        r_clip_eatery.update({"eatery_id": self.eatery_id},
+                                {"$set": {"%s.%s"%(category,
+                                    sub_category):sub_category_data}}, upsert=False)
                         
 
                 except Exception as e:

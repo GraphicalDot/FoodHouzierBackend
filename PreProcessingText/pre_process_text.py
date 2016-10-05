@@ -37,9 +37,9 @@ class PreProcessText(object):
                 occurence 
                 """
                 text = re.sub('\)+', ')', text)
-                text = re.sub("\.{2,10000}", " ", text) 
-                text = re.sub("\?{2,10000}", " ", text) 
-                text = re.sub("\!{2,10000}", " ", text) 
+                text = re.sub("\.{2,10000}", ". ", text) 
+                text = re.sub("\?{2,10000}", "? ", text) 
+                text = re.sub("\!{2,10000}", "! ", text) 
                 return text
 
 

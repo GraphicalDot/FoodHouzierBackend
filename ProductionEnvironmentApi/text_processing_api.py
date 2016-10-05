@@ -23,6 +23,8 @@ import ConfigParser
 from sklearn.externals import joblib
 from collections import Counter
 from text_processing_db_scripts import MongoScriptsReviews, MongoScriptsDoClusters
+from nltk.stem import SnowballStemmer
+
 #from prod_heuristic_clustering import ProductionHeuristicClustering
 
 #from join_two_clusters import ProductionJoinClusters
@@ -33,7 +35,7 @@ parent_dir_path = os.path.dirname(this_file_path)
 print parent_dir_path
 
 sys.path.append(parent_dir_path)
-
+from prod_heuristic_clustering import  ProductionHeuristicClustering
 from PreProcessingText import PreProcessText
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.externals import joblib
@@ -68,7 +70,8 @@ from configs import eateries, reviews
 import blessings
 Terminal = blessings.Terminal()
 
-
+from nltk.tokenize import PunktSentenceTokenizer
+tokenizer = PunktSentenceTokenizer()
 
 #from elasticsearch_db import ElasticSearchScripts
 from topia.termextract import extract  
@@ -130,7 +133,7 @@ class EachEatery:
                         print Terminla.red("No reviews are to be processed")
                
                 
-                result = MongoScriptsReviews.reviews_with_text(review_ids)
+                result = MongoScriptsReviews.reviews_with_text(review_ids, self.eatery_id)
                 print Terminal.green("Length of the review ids %s for the eatery id is %s"%(len(review_ids), self.eatery_id))
                 return result
 
@@ -139,25 +142,26 @@ class EachEatery:
 
 
 class PerReview:
-        sent_tokenizer = SentenceTokenizationOnRegexOnInterjections()
         def __init__(self, review_id, review_text, review_time, eatery_id):
                 """
                 Lowering the review text
                 """
                 self.review_id, self.review_time, self.eatery_id = review_id, review_time, eatery_id
 
-                
+                """ 
+                print review_text
                 encoded_text = SolveEncoding.to_unicode_or_bust(review_text)
+                print encoded_text
                 stemmed_text = PerReview.snowball_stemmer(encoded_text)
-                processed_text = PerReview.pre_process_text(stemmed_text)
+                print stemmed_text
+                processed_text = PerReview.pre_process_text(review_text)
+                """
 
-
-                self.review_text = processed_text
-                print self.review_time, self.review_text, self.review_id, self.eatery_id
+                self.review_text= review_text.encode("ascii", "ignore")
                 self.cuisine_name = list()
                 self.places_names = list()
                 self.np_extractor = extract.TermExtractor() 
-
+                self.run()
 
         @staticmethod
         def snowball_stemmer(sentences):
@@ -188,10 +192,9 @@ class PerReview:
                 fname = func.func_name
                 def wrapper(*args,**kwargs):
                         start_time = time.time()
-                        print "{0} Now {1} have started executing {2}".format(bcolors.OKBLUE, func.func_name, bcolors.RESET)
+                        print Terminal.green("Now {0} have started executing".format(func.func_name))
                         result = func(*args, **kwargs)
-                        print "{0} Total time taken by {1} for execution is --<<{2}>>--{3}\n".format(bcolors.OKGREEN, func.func_name, 
-                                (time.time() - start_time), bcolors.RESET)
+                        print Terminal.green("Total time taken by {0} for execution is --<<{1}>>".format(func.func_name, (time.time() - start_time)))
                         
                         return result
                 return wrapper
@@ -202,8 +205,7 @@ class PerReview:
 
         @print_execution
         def run(self):
-                print "{0} Now processing review id --<<{1}>>--{2}".format(bcolors.FAIL, \
-                                self.review_id, bcolors.RESET)
+                print Terminal.green("Now processing review id --<<{0}>>".format(self.review_id))
                 self.__sent_tokenize_review() #Tokenize reviews, makes self.reviews_ids, self.sentences
                 self.__predict_tags()          #Predict tags, makes self.predict_tags
                 self.__predict_sentiment() #makes self.predicted_sentiment
@@ -233,7 +235,17 @@ class PerReview:
                 Tokenize self.reviews tuples of the form (review_id, review) to sentences of the form (review_id, sentence)
                 and generates two lists self.review_ids and self.sentences
                 """
-                self.sentences = self.sent_tokenizer.tokenize(self.review_text)
+                print self.review_text
+                
+                text = PreProcessText.process(self.review_text)
+                self.sentences = tokenizer.tokenize(text)
+                ##now breking sentences on the basis of but
+                new_sentences = list()
+                for sentence in self.sentences:
+                     new_sentences.extend(sentence.split("but"))
+                self.sentences = filter(None, new_sentences)
+                print self.sentences
+                #processed_text = PreProcessText.remove_and_replace(text)
                 return
         
         @print_execution
@@ -275,6 +287,9 @@ class PerReview:
                 """
                 This deals with the sub classification of fodd sub tags
                 """
+                if not bool(self.food):
+                        self.all_food = []
+                        return 
                 self.food_sentences = zip(*self.food)[0]
                 self.food_sub_tags = self.prediction(self.food_sentences,
                                                      food_vocabulary,
@@ -282,7 +297,7 @@ class PerReview:
                
                 print Terminal.green("Here are the food sentences with predictions")
                 for (sent, tag) in zip(self.food_sentences, self.food_sub_tags):
-                            print Terminal.green((sent, tag))
+                            print (sent, tag)
                 
                 self.all_food = [[sent, tag, sentiment, sub_tag] for ((sent, tag, sentiment), sub_tag)\
                         in zip(self.food, self.food_sub_tags)]
@@ -296,6 +311,10 @@ class PerReview:
 		and generates self.all_service with an element in the form 
 		(sent, tag, sentiment, sub_tag_service)
                 """
+                if not bool(self.service):
+                        self.all_service = []
+                        return 
+
                 self.service_sentences = zip(*self.service)[0]
                 self.service_sub_tags = self.prediction(self.service_sentences,
                                                      service_vocabulary,
@@ -303,7 +322,7 @@ class PerReview:
                
                 print Terminal.green("Here are the service sentences with predictions")
                 for (sent, tag) in zip(self.service_sentences, self.service_sub_tags):
-                            print Terminal.green((sent, tag))
+                            print (sent, tag)
                 
                 self.all_service = [[sent, tag, sentiment, sub_tag] for ((sent, tag, sentiment), sub_tag)\
                         in zip(self.service, self.service_sub_tags)]
@@ -318,6 +337,9 @@ class PerReview:
                 
                 self.all_cost = [(sent, "cost", sentiment, "cost-overall",), .....]
                 """
+                if not bool(self.cost):
+                        self.all_cost = []
+                        return 
                 self.cost_sentences = zip(*self.cost)[0]
                 self.cost_sub_tags = self.prediction(self.cost_sentences,
                                                      cost_vocabulary,
@@ -325,7 +347,7 @@ class PerReview:
                
                 print Terminal.green("Here are the cost sentences with predictions")
                 for (sent, tag) in zip(self.cost_sentences, self.cost_sub_tags):
-                            print Terminal.green((sent, tag))
+                            print (sent, tag)
                 
                 self.all_cost = [[sent, tag, sentiment, sub_tag] for ((sent, tag, sentiment), sub_tag)\
                                  in zip(self.cost, self.cost_sub_tags)]
@@ -338,6 +360,9 @@ class PerReview:
                 """
                 This deals with the sub classification of fodd sub tags
                 """
+                if not bool(self.ambience):
+                        self.all_ambience = []
+                        return 
                 self.ambience_sentences = zip(*self.ambience)[0]
                 self.ambience_sub_tags = self.prediction(self.ambience_sentences,
                                                      ambience_vocabulary,
@@ -345,7 +370,7 @@ class PerReview:
                
                 print Terminal.green("Here are the ambience sentences with predictions")
                 for (sent, tag) in zip(self.ambience_sentences, self.ambience_sub_tags):
-                            print Terminal.green((sent, tag))
+                            print (sent, tag)
                 
                 self.all_ambience = [[sent, tag, sentiment, sub_tag] for ((sent, tag, sentiment), sub_tag)\
                         in zip(self.ambience, self.ambience_sub_tags)]
@@ -498,7 +523,7 @@ class DoClusters(object):
                 self.mongo_instance = MongoScriptsDoClusters(self.eatery_id)
                 self.eatery_name = self.mongo_instance.eatery_name
                 self.category = category
-                self.sentiment_tags = ["good", "poor", "average", "excellent", "terrible", "mixed"]
+                self.sentiment_tags = ["mixed", "negative", "positive", "neutral"]
                 self.food_tags = ["dishes", "null-food", "overall-food"]
                 self.ambience_tags = [u'smoking-zone', u'decor', u'ambience-null', u'ambience-overall', u'in-seating', u'crowd', u'open-area', u'dancefloor', u'music', u'location', u'romantic', u'sports', u'live-matches', u'view']
                 self.cost_tags = ["vfm", "expensive", "cheap", "not worth", "cost-null"]
@@ -541,13 +566,13 @@ class DoClusters(object):
 
                 if self.mongo_instance.if_no_reviews_till_date() == 0:
                         ##This implies that this eatery has no reviews present in the database
-                        print "{0} No reviews are present for the eatery_id in reviews colllection\
-                                = <<{1}>> {2}".format(bcolors.OKBLUE, self.eatery_id, bcolors.RESET)
+                        print "No reviews are present for the eatery_id in reviews colllection\
+                                = <<{0}>>".format(self.eatery_id)
                         return 
 
                 #That clustering is running for the first time
-                warnings.warn("{0} No clustering of noun phrases has been done yet  for eatery_id\
-                                = <<{1}>>{2}".format(bcolors.FAIL, self.eatery_id, bcolors.RESET))
+                warnings.warn("No clustering of noun phrases has been done yet  for eatery_id\
+                                = <<{0}>>".format(self.eatery_id))
                        
                 ##update eatery with all the details in eatery reslut collection
 
@@ -608,10 +633,10 @@ class DoClusters(object):
                 """
                 Args __sent_sentiment_nps_list:
                         [
-                        (u'positive', [u'paneer chilli pepper starter'], u'2014-09-19 06:56:42'),
-                        (u'positive', [u'paneer chilli pepper starter'], u'2014-09-19 06:56:42'),
-                        (u'positive', [u'paneer chilli pepper starter'], u'2014-09-19 06:56:42'),
-                         (u'neutral', [u'chicken pieces', u'veg pasta n'], u'2014-06-20 15:11:42')]  
+                        (u'positive', sentence, [u'paneer chilli pepper starter'], u'2014-09-19 06:56:42'),
+                        (u'positive', sentence, [u'paneer chilli pepper starter'], u'2014-09-19 06:56:42'),
+                        (u'positive', sentence, [u'paneer chilli pepper starter'], u'2014-09-19 06:56:42'),
+                         (u'neutral', sentence, [u'chicken pieces', u'veg pasta n'], u'2014-06-20 15:11:42')]  
 
                 Result:
                     [
@@ -679,6 +704,7 @@ class DoClusters(object):
                     {u'negative': 4, u'neutral': 2}
                 """
 
+                ##If overall-food is empty
                 if not bool(old):
                         ##returns {'poor': 0, 'good': 0, 'excellent': 0, 'mixed': 0, 'timeline': [], 'average': 0, 'total_sentiments': 0, 'terrible': 0}
                         sentiment_dict = dict()
@@ -708,8 +734,8 @@ class DoClusters(object):
 
                 [sentiment_dict.update(__dict) for __dict in map(convert,  self.sentiment_tags)]
                 sentiment_dict.update({"timeline": timeline})
-                total = sentiment_dict.get("good") + sentiment_dict.get("poor") + sentiment_dict.get("average") + sentiment_dict.get("terrible")\
-                                    +sentiment_dict.get("excellent") + sentiment_dict.get("mixed") 
+                total = sentiment_dict.get("positive") + sentiment_dict.get("negative") + sentiment_dict.get("neutral") \
+                                    +sentiment_dict.get("mixed") 
 
                 sentiment_dict.update({"total_sentiments": total})
                 return sentiment_dict
@@ -735,8 +761,9 @@ class DoClusters(object):
 
                 [sentiment_dict.update(__dict) for __dict in map(convert,  self.sentiment_tags)]
                 sentiment_dict.update({"timeline": timeline})
-                total = sentiment_dict.get("good") + sentiment_dict.get("poor") + sentiment_dict.get("average") + sentiment_dict.get("terrible")\
-                                    +sentiment_dict.get("excellent") + sentiment_dict.get("mixed") 
+                total = sentiment_dict.get("negative")\
+                        + sentiment_dict.get("positive")\
+                        + sentiment_dict.get("neutral") + sentiment_dict.get("mixed")
 
                 sentiment_dict.update({"total_sentiments": total})
                 return sentiment_dict
@@ -969,20 +996,23 @@ if __name__ == "__main__":
                         ambience_vocabulary = joblib.load(AmbienceVocabularyFileName)
                         ambience_classifier= joblib.load(AmbienceClassifierFileName)
             print Terminal.green("<<%s>> classifiers and vocabulary loaded"%"Ambience") 
-
-
-            eatery_id = "308322"
+            eatery_ids_one = [ post.get("eatery_id") for post in\
+                    eateries.find({"eatery_area_or_city": "Delhi NCR"}) if\
+                    reviews.find({"eatery_id": post.get("eatery_id")}).count()> 20]
+            start = time.time()
+            eatery_id = "18070476"
+            instance = DoClusters(eatery_id)
+            instance.run()
+            """
             instance = EachEatery(eatery_id)
             result = instance.return_non_processed_reviews()
-            print result
-            result = [(e[0], e[1], e[2], eatery_id) for e in result]
+            
+            
             for element in result:
-                            instance = PerReview(element[0], element[1], element[2], element[3])
-                            instance.run()
+                            instance = PerReview(*element)
+            print time.time() - start
             #ins = DoClusters(eatery_id)
             #ins.run()
-
-            """
             i = 0
             for post in eateries_results_collection.find():
                     eatery_id = post.get("eatery_id")

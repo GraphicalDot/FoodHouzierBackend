@@ -4,7 +4,7 @@
 Author: Kaali
 Dated: 9 march, 2015
 Purpose: This module deals with the clustering of the noun phrases, Evverything it uses are heuristic rules because
-till now i am unable to find any good clutering algorithms which suits our needs.
+till now i am unable to find any positive clutering algorithms which suits our needs.
 
 Edit 1: 15 May to 21 May
 
@@ -15,7 +15,6 @@ from sklearn.cluster import DBSCAN
 import requests
 import numpy as np
 from sklearn.cluster import MeanShift, estimate_bandwidth
-import Levenshtein
 import codecs
 import nltk
 from compiler.ast import flatten
@@ -23,16 +22,11 @@ import time
 from collections import Counter
 import re
 import math
-import jaro
 import os
 import sys
-import openpyxl
 from nltk.tag.hunpos import HunposTagger
 this_file_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(this_file_path)
-from Text_Processing.PosTaggers import PosTaggerDirPath, HunPosModelPath, HunPosTagPath
-from Text_Processing.colored_print import bcolors
-from Text_Processing import SentenceTokenizationOnRegexOnInterjections
 from nltk.stem.snowball import SnowballStemmer
 
 stemmer = SnowballStemmer("english")
@@ -81,10 +75,10 @@ class SimilarityMatrices:
                 In[#]: get_cosine(text_to_vector('love masala dosai'), text_to_vector('onion rawa masala dosa'))
                 Out[#]: 0.288
                 
-                In[#]: get_cosine(text_to_vector('awesme tast'), text_to_vector('good taste'))
+                In[#]: get_cosine(text_to_vector('awesme tast'), text_to_vector('positive taste'))
                 Out[#]: 0.0
                 
-                In[#]: get_cosine(text_to_vector('awesme taste'), text_to_vector('good taste'))
+                In[#]: get_cosine(text_to_vector('awesme taste'), text_to_vector('positive taste'))
                 Out[#]: 0.5
                 """
                 vector1 = text_to_vector(__str1)
@@ -141,8 +135,8 @@ class ProductionHeuristicClustering:
                 """ 
                 Args:
                     sentiment_nps:
-                        [[u'good',[u'paneer chilli pepper starter']], [u'good', []],
-                         [u'good', [u'friday night']], [u'good', []],                                   
+                        [[u'positive',[u'paneer chilli pepper starter']], [u'positive', []],
+                         [u'positive', [u'friday night']], [u'positive', []],                                   
                          [u'excellent', [u'garlic flavours', u'penne alfredo pasta']]],
                 """
 
@@ -163,7 +157,7 @@ class ProductionHeuristicClustering:
                         self.list_to_exclude.extend([e.lstrip() for e in eatery_address.lower().split(",")])
 
 
-                self.list_to_exclude.extend(["i", "drink", "good", "great", "food", "service", "cost", "ambience", "place", "rs", "ok", "r", "taste", "lovers", "lover"])
+                self.list_to_exclude.extend(["i", "drink", "positive", "great", "food", "service", "cost", "ambience", "place", "rs", "ok", "r", "taste", "lovers", "lover"])
 
 
 
@@ -211,8 +205,7 @@ class ProductionHeuristicClustering:
                 This takes in a list of dictionaries with sentiments present for each dictionary, 
                 and then adds a new key to every dictionary which is the sum of all the sentiments
                 """
-                __add =  lambda x: x.get("good") + x.get("poor")+ x.get("average") + x.get("excellent")\
-                                    + x.get("terrible")
+                __add =  lambda x: x.get("positive") + x.get("negative")+ x.get("neutral")
                 [__dict.update({"total_sentiments": __add(__dict)}) for __dict in __list]
                 
                 __result = sorted(__list, reverse=True, key=lambda x: x.get("total_sentiments"))
@@ -227,9 +220,9 @@ class ProductionHeuristicClustering:
                 Result:
                     Merging noun phrases who have exact similar spellings with each other and return a 
                     dictionary in the form
-                    u'ice tea': {'good', 6, 'poor': 5, "average": 5, "excellent": 0, 
+                    u'ice tea': {'positive', 6, 'negative': 5, "neutral": 5, "excellent": 0, 
                     "terrible": 10},
-                    u'iced tea': {'good', 2, 'poor', 10, "average": 230, "excellent": 5, 
+                    u'iced tea': {'positive', 2, 'negative', 10, "neutral": 230, "excellent": 5, 
                     "terrible": 5},
                 }
                 """
@@ -264,26 +257,18 @@ class ProductionHeuristicClustering:
                                         timeline = result.get("timeline")
                                         timeline.append((sentiment, review_time))
                                         
-                                        good, poor, average, excellent, terrible = \
-                                                result.get("good"), result.get("poor"),result.get("average"), \
-                                                result.get("excellent"), result.get("terrible")
+                                        positive, negative, neutral = \
+                                                result.get("positive"), result.get("negative"),result.get("neutral")
                                         
 
-                                        new_frequency_poor = (poor, poor+1)[sentiment == "poor"]
-                                        new_frequency_good = (good, good+1)[sentiment == "good"]
-                                        new_frequency_average = (average, average+1)[sentiment == "average"]
-                                        new_frequency_excellent = (excellent, excellent+1)[sentiment == \
-                                                "excellent"]
-                                        new_frequency_terrible = (terrible, terrible+1)[sentiment == \
-                                                "terrible"]
-                                
+                                        new_frequency_negative = (negative, negative+1)[sentiment == "negative"]
+                                        new_frequency_positive = (positive, positive+1)[sentiment == "positive"]
+                                        new_frequency_neutral = (neutral, neutral+1)[sentiment == "neutral"]
 
                                         without_similar_elements.update(
                                             {__np: 
-                                                {"poor": new_frequency_poor, "good": new_frequency_good,
-                                                    "average": new_frequency_average, "excellent": \
-                                                            new_frequency_excellent, 
-                                                    "terrible": new_frequency_terrible,
+                                                {"negative": new_frequency_negative, "positive": new_frequency_positive,
+                                                    "neutral": new_frequency_neutral,
                                                     "timeline": timeline,
                                             }})
 
@@ -291,10 +276,8 @@ class ProductionHeuristicClustering:
                                 else:
                                     without_similar_elements.update(
                                     {__np: 
-                                        {"poor": (0, 1)[sentiment=="poor"], "good": (0, 1)[sentiment=="good"],
-                                            "average": (0, 1)[sentiment=="average"], 
-                                            "excellent": (0, 1)[sentiment == "excellent"], 
-                                            "terrible": (0, 1)[sentiment == "terrible"], 
+                                        {"negative": (0, 1)[sentiment=="negative"], "positive": (0, 1)[sentiment=="positive"],
+                                            "neutral": (0, 1)[sentiment=="neutral"], 
                                             "timeline": [(sentiment, review_time)],
                                             }})
                 
@@ -394,7 +377,7 @@ class ProductionHeuristicClustering:
                 
                 """
                 result = list()
-                good, poor, average, excellent, terrible = int(), int(), int(), int(), int()
+                positive, negative, neutral, excellent, terrible = int(), int(), int(), int(), int()
                 timeline = list()
                
                 cluster_names = [self.keys[element] for element in cluster_list]
@@ -405,11 +388,9 @@ class ProductionHeuristicClustering:
                         new_dict = self.merged_sentiment_nps[name]
                         new_dict.update({"name": name})
                         result.append(new_dict)        
-                        good = good +  self.merged_sentiment_nps[name].get("good") 
-                        poor = poor +  self.merged_sentiment_nps[name].get("poor") 
-                        average = average +  self.merged_sentiment_nps[name].get("average") 
-                        terrible = terrible +  self.merged_sentiment_nps[name].get("terrible") 
-                        excellent = excellent +  self.merged_sentiment_nps[name].get("excellent") 
+                        positive = positive +  self.merged_sentiment_nps[name].get("positive") 
+                        negative = negative +  self.merged_sentiment_nps[name].get("negative") 
+                        neutral = neutral +  self.merged_sentiment_nps[name].get("neutral") 
                         timeline.extend(self.merged_sentiment_nps[name].get("timeline"))
 
                 whole = dict()
@@ -421,8 +402,8 @@ class ProductionHeuristicClustering:
                 
                 name = filter(lambda x: whole[x] == max(whole.values()), whole.keys())[0]
 
-                return {"name": name, "good": good, "poor": poor, "average": average, 
-                        "terrible": terrible, "excellent": excellent, "similar": whole_cluster_names_n_keys,
+                return {"name": name, "positive": positive, "negative": negative, "neutral": neutral, 
+                        "similar": whole_cluster_names_n_keys,
                         "timeline": timeline}
 
         #@print_execution
