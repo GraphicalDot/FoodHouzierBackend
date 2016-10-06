@@ -22,23 +22,23 @@ sys.path.append(parent_dir_path)
 
 
 from elasticsearch import RequestError
-
+import blessings
 NUMBER_OF_DOCS = 10
 #localhost:9200/test/_analyze?analyzer=whitespace' -d 'this is a test'
 #curl -XGET "http://192.168.1.4:9200/food/_analyze?analyzer=custom_analyzer&pretty=1" -d "cheesecake"
 
 
 os.chdir(parent_dir_path)
-from connections import ES_CLIENT, eateries_results_collection, bcolors, eateries, ELASTICSEARCH_IP
+from configs import ES_CLIENT, r_eateries, bcolors, eateries, ElasticsearchConfig
 os.chdir(file_path)
 
-
+Terminal = blessings.Terminal()
 
 
 
 
 ##These cateories shouldnt contain null values for any category
-sentiment_tags =   ["good", "poor", "average", "excellent", "terrible", "mixed"]
+sentiment_tags =   ["positive", "neutral", "negative", "mixed"]
 food_tags =  ["dishes",  "overall-food"]
 ambience_tags = ['smoking-zone', 'decor', 'ambience-overall', 'in-seating', 'crowd', 'open-area', 'dancefloor', 'music', 'location', 'romantic', 'sports', 'live-matches', 'view', "bowling"]
 cost_tags =  ["vfm", "expensive", "cheap", "not worth"]
@@ -1117,8 +1117,11 @@ class ElasticSearchScripts(object):
 
 if __name__ == "__main__":
             ElasticSearchScripts(renew_indexes=True)
+            """
             for post in eateries_results_collection.find():
                     __id = post.get("eatery_id")
             #for __id in [u'310159', u'307852', u'312114', u'18198477', u'18146368', u'17979576', u'306787', u'8234', u'309243', u'311835', u'313058', u'307853', u'17989123', u'17953918', u'18017241', u'307931', u'8893', u'303095', u'9354', u'4412', u'310094', u'9321', u'303092', u'5591', u'301001', u'301442', u'5732', u'5030', u'301131', u'4899', u'308322', u'8369', u'7070', u'305137', u'307360', u'8910', u'309792', u'308463', u'307330', u'306334', u'307454', u'91', u'304027', u'3392', u'2664', u'307146', u'308642', u'311182', u'310846', u'310396', u'8873', u'305681', u'18082196', u'312437', u'313384', u'304676']:
                     ElasticSearchScripts.insert_eatery(__id)
+            """
+
 

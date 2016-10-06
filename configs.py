@@ -3,12 +3,18 @@
 import pymongo
 import os
 from os.path import dirname, abspath, exists
-
+from elasticsearch import Elasticsearch, helpers
 base_dir = dirname(dirname(abspath(__file__)))
 import platform 
 
 
+ElasticsearchConfig = dict(
+        ip = "localhost"
 
+)
+
+
+ES_CLIENT = Elasticsearch(ElasticsearchConfig["ip"], timeout=30)
 
 
 if platform.system() == "Darwin":
@@ -193,6 +199,14 @@ with cd(corenlp_data["path_jar_files"]):
 
 
 
+class bcolors:
+        HEADER = '\033[95m'
+        OKBLUE = '\033[94m'
+        OKGREEN = '\033[92m'
+        WARNING = '\033[93m'
+        FAIL = '\033[91m'
+        ENDC = '\033[0m'
+        RESET='\033[0m'
 
 
 

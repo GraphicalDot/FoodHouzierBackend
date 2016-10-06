@@ -525,7 +525,10 @@ class DoClusters(object):
                 self.category = category
                 self.sentiment_tags = ["mixed", "negative", "positive", "neutral"]
                 self.food_tags = ["dishes", "null-food", "overall-food"]
-                self.ambience_tags = [u'smoking-zone', u'decor', u'ambience-null', u'ambience-overall', u'in-seating', u'crowd', u'open-area', u'dancefloor', u'music', u'location', u'romantic', u'sports', u'live-matches', u'view']
+                self.ambience_tags = [u'smoking-zone', u'decor', u'ambience-null',\
+                 u'ambience-overall', u'in-seating', u'crowd', u'open-area',\
+                 u'sports', u'dancefloor', u'music', u'location',  \
+                 u'bowling', u'view', u'live-matches', u'romantic']
                 self.cost_tags = ["vfm", "expensive", "cheap", "not worth", "cost-null"]
                 self.service_tags = [u'management', u'service-charges', u'service-overall', u'service-null', u'waiting-hours', u'presentation', u'booking', u'staff']
 
@@ -919,6 +922,7 @@ class DoClusters(object):
                 sentences_dict = dict()
 
                 for sub_tag in eval("self.{0}_tags".format(category.replace("_result", ""))):
+                        print sub_tag
                         for sentiment in self.sentiment_tags:
                             sentences_dict.update({sub_tag: {"sentiment": list(), "timeline": list(), "total_sentiments": 0}})
 
