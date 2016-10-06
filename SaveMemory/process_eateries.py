@@ -81,7 +81,16 @@ from simplejson import loads
 
 
 
+def begin():
+        """
+        Because i choose i bullshit algortihm of support vector machienes
+        which, if trained on 500 sentecnes occupes 20gb data per classifier
+        it is ver y hard to load them all at once in memmory wchi consumes
+        about 70GB memory, Now to save this memmory, we going to bulk process
+        sentences per category and sotre the result in the databses, instead of
+        processing it eatery by eatery
 
+        """
 
 
 class EachEatery:
@@ -139,6 +148,69 @@ class EachEatery:
 
 
 
+def prediction(self, sentences, vocabulary, features, classifier):
+        loaded_vectorizer= CountVectorizer(vocabulary=vocabulary) 
+        sentences_counts = loaded_vectorizer.transform(sentences)
+        reduced_features = features.transform(sentences_counts.toarray())
+        predictions = classifier.predict(reduced_features)
+        return predictions
+ 
+
+class SentimentClassification(object):
+            
+    
+        def __init__(self, eatery_id_list):
+                with cd(SentimentClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+                        self.features =  joblib.load(SentimentFeatureFileName)
+                        self.vocabulary = joblib.load(SentimentVocabularyFileName)
+                        self.classifier= joblib.load(SentimentClassifierFileName)
+                self.eatery_id_list = eatery_id_list #list of ids 
+
+                review_list = list()
+                for eatery_id in self.eatery_id_list:
+                        review_list.extend([(eatery_id, post.get("review_id"), post.get("review_text"),
+                                post.get("review_time")) for post in
+                                reviews.find({"eatery_id": eatery_id})])
+
+                ##review_list at this point will be in the form 
+                ##[(review_id, review_text, review_time), ()]
+
+                ##now tokenizing all the reviews 
+                tokenized_reviews = list() 
+                for (eatery_id, review_id, review_text, review_time) in review_list:
+                            sentences = self.sent_tokenize_review(review_text)
+                            tokenized_reviews.extend(map(lambda sent: (eatery_id, review_id, sent,
+                                review_time), sentences))
+
+                ##this will return a list of quadruple with each element will
+                ##a tokenixed sentences form the review whose id is the second
+                ##element 
+
+                sentences = zip(*tokenized_reviews)[2]
+                predicted_tags = sentence, self.vocabulary, self.features, self.classifier)
+
+
+
+
+
+        @print_execution
+        def sent_tokenize_review(self, review_text):
+                """
+                Tokenize self.reviews tuples of the form (review_id, review) to sentences of the form (review_id, sentence)
+                and generates two lists self.review_ids and self.sentences
+                """
+                
+                text = PreProcessText.process(review_text)
+                self.sentences = tokenizer.tokenize(text)
+                ##now breking sentences on the basis of but
+                new_sentences = list()
+                for sentence in self.sentences:
+                     new_sentences.extend(sentence.split("but"))
+                return filter(None, new_sentences)
+        
+
+
+
 
 
 class PerReview:
@@ -174,17 +246,6 @@ class PerReview:
                 return [PreProcessText.process(sent) for sent in sentences]
 
 
-        def prediction(self, sentences, vocabulary, features, classifier):
-                print sentences
-                loaded_vectorizer= CountVectorizer(vocabulary=vocabulary) 
-                
-                sentences_counts = loaded_vectorizer.transform(sentences)
-                
-                reduced_features = features.transform(sentences_counts.toarray())
-                         
-                predictions = classifier.predict(reduced_features)
-                return predictions
- 
 
         def print_execution(func):
                 "This decorator dumps out the arguments passed to a function before calling it"
@@ -1010,20 +1071,19 @@ if __name__ == "__main__":
                     number = reviews.find({"eatery_id": post.get("eatery_id")}).count()
                     if 100<number<200:
                             eatery_ids_one.append(post.get("eatery_id"))
-             
-            for eatery_id in eatery_ids_one[0:15]:
-                    if eatery_id not in ["18070476", "307543"]:
-                            start = time.time()
-                            instance = EachEatery(eatery_id)
-                            result = instance.return_non_processed_reviews()
+            
+            for eatery_id in eatery_ids_one[0:1]:
+                    start = time.time()
+                    instance = EachEatery(eatery_id)
+                    result = instance.return_non_processed_reviews()
             
             
-                            for element in result:
-                                    instance = PerReview(*element)
+                    for element in result:
+                                instance = PerReview(*element)
             
-                            instance = DoClusters(eatery_id)
-                            instance.run()
-                            print time.time() - start
+                    instance = DoClusters(eatery_id)
+                    instance.run()
+                    print time.time() - start
             """
             #ins = DoClusters(eatery_id)
             #ins.run()

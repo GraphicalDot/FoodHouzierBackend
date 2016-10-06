@@ -8,6 +8,7 @@ import tornado.httpserver
 import json
 from tornado.log import enable_pretty_logging
 from tornado.httpclient import AsyncHTTPClient
+from tornado.web import asynchronous
 import pymongo
 import os
 import sys
@@ -41,12 +42,11 @@ from configs import FoodVocabularyFileName, FoodFeatureFileName, FoodClassifierF
 from configs import ServiceVocabularyFileName, ServiceFeatureFileName, ServiceClassifierFileName
 from configs import CostVocabularyFileName, CostFeatureFileName, CostClassifierFileName
 from configs import AmbienceVocabularyFileName, AmbienceFeatureFileName, AmbienceClassifierFileName
-from configs import tags
-
+from configs import r_reviews, r_eateries, r_clip_eatery
 
 from configs import cd
 import cPickle
-
+from ProductionEnvironmentApi.elasticsearch_db import ElasticSearchScripts
 
 def cors(f):
         @wraps(f) # to preserve name, docstring, etc.
@@ -328,7 +328,7 @@ class TextSearch(tornado.web.RequestHandler):
                         __result = ElasticSearchScripts.get_dish_match(text)
                         for dish in __result:
                                 __eatery_id = dish.get("__eatery_id")
-                                __eatery_details = short_eatery_result_collection.find_one({"__eatery_id": __eatery_id})
+                                __eatery_details = r_clip_eatery.find_one({"__eatery_id": __eatery_id})
                                 for e in ["eatery_highlights", "eatery_cuisine", "eatery_trending", "eatery_id", "eatery_known_for", "eatery_type", "_id"]:
                                         try:
                                                 __eatery_details.pop(e)
@@ -423,7 +423,39 @@ class Suggestions(tornado.web.RequestHandler):
                 self.finish()
                 return 
 
+def process_result(result):
+                number_of_dishes = 20
+                dishes = sorted(result["food"]["dishes"], key=lambda x: x.get("total_sentiments"), reverse=True)[0: number_of_dishes]
+                overall_food = result["food"]["overall-food"]
+                ambience = result["ambience"]
+                cost = result["cost"]
+                service = result["service"]
+                overall = result["overall"]
+                menu = result["menu"]
 
+                ##removing timeline
+                [value.pop("timeline") for (key, value) in ambience.iteritems()]
+                [value.pop("timeline") for (key, value) in cost.iteritems()]
+                [value.pop("timeline") for (key, value) in service.iteritems()]
+                overall.pop("timeline")
+                menu.pop("timeline")
+                [element.pop("timeline") for element in dishes]
+                [element.pop("similar") for element in dishes]
+
+
+
+                result = {"food": dishes,
+                            "ambience": ambience, 
+                            "cost": cost, 
+                            "service": service, 
+                            "menu": menu,
+                            "overall": overall,
+                            "eatery_address": result["eatery_address"],
+                            "eatery_name": result["eatery_name"],
+                            "__eatery_id": result["__eatery_id"]
+                            }
+                        
+                return result
 class GetEatery(tornado.web.RequestHandler):
         @cors
         @print_execution
@@ -435,12 +467,11 @@ class GetEatery(tornado.web.RequestHandler):
                 __eatery_id =  self.get_argument("__eatery_id", None)
                 eatery_name  =  self.get_argument("eatery_name", None)
                 if __eatery_id:
-                        result = eateries_results_collection.find_one({"__eatery_id": __eatery_id})
+                        result = r_eateries.find_one({"__eatery_id": __eatery_id})
                 else:
-                        result = eateries_results_collection.find_one({"eatery_name": eatery_name})
+                        result = r_eateries.find_one({"eatery_name": eatery_name})
                         __eatery_id = result.get("__eatery_id")        
                 
-                images = list(pictures_collection.find({"__eatery_id": __eatery_id}, {"_id": False, "s3_url": True, "image_id": True, "likes": True}).limit(10))
                 if not result:
                         """
                         If the eatery name couldnt found in the mongodb for the popular matches
@@ -454,10 +485,9 @@ class GetEatery(tornado.web.RequestHandler):
                         return 
                
 
-                cprint(figlet_format('Finished executing %s'%self.__class__.__name__, font='mini'), attrs=['bold'])
                 
                 __result = process_result(result)
-                __result.update({"images": images})
+                __result.update({"images": result["pictures"][0:2]})
                 self.write({"success": True,
 			"error": False,
                         "result": __result})
@@ -472,6 +502,10 @@ class Application(tornado.web.Application):
         def __init__(self):
                 handlers = [
                     (r"/post_text", PostText),
+                    (r"/nearest_eateries", NearestEateries),
+                    (r"/suggestions", Suggestions),
+                    (r"/geteatery", GetEatery),
+                    (r"/textsearch", TextSearch),
                     (r"/images/^(.*)", tornado.web.StaticFileHandler, {"path": "./images"},),
                     (r"/css/(.*)", tornado.web.StaticFileHandler, {"path": "/css"},),
                     (r"/js/(.*)", tornado.web.StaticFileHandler, {"path": "/js"},),]
@@ -500,7 +534,6 @@ if __name__ == "__main__":
         application.listen(8000)
         tornado.autoreload.start()
         tornado.ioloop.IOLoop.instance().start()
-        """
 
         parser = optparse.OptionParser(usage="usage: %prog [options] filename",
                           version="%prog 1.0")
@@ -558,6 +591,7 @@ if __name__ == "__main__":
         sent_tokenizer  = SentenceTokenizationOnRegexOnInterjections()
         print Terminal.green("Sentence Tokenizer has been initialized") 
         extractor = extract.TermExtractor()
+        """
         main()
 
 
