@@ -22,10 +22,10 @@ import warnings
 import ConfigParser
 from sklearn.externals import joblib
 from collections import Counter
-from text_processing_db_scripts import MongoScriptsReviews, MongoScriptsDoClusters
+from db_scripts import MongoScriptsReviews, MongoScriptsDoClusters
 from nltk.stem import SnowballStemmer
 
-#from prod_heuristic_clustering import ProductionHeuristicClustering
+from prod_heuristic_clustering import ProductionHeuristicClustering
 
 #from join_two_clusters import ProductionJoinClusters
 
@@ -35,7 +35,6 @@ parent_dir_path = os.path.dirname(this_file_path)
 print parent_dir_path
 
 sys.path.append(parent_dir_path)
-from prod_heuristic_clustering import  ProductionHeuristicClustering
 from PreProcessingText import PreProcessText
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.externals import joblib
@@ -65,8 +64,7 @@ from configs import CostVocabularyFileName, CostFeatureFileName,\
 from configs import AmbienceVocabularyFileName, AmbienceFeatureFileName,\
                     AmbienceClassifierFileName
 
-from configs import eateries, reviews 
-
+from configs import eateries, reviews, r_reviews, r_eateries
 import blessings
 Terminal = blessings.Terminal()
 
@@ -80,17 +78,6 @@ from simplejson import loads
 
 
 
-
-def begin():
-        """
-        Because i choose i bullshit algortihm of support vector machienes
-        which, if trained on 500 sentecnes occupes 20gb data per classifier
-        it is ver y hard to load them all at once in memmory wchi consumes
-        about 70GB memory, Now to save this memmory, we going to bulk process
-        sentences per category and sotre the result in the databses, instead of
-        processing it eatery by eatery
-
-        """
 
 
 class EachEatery:
@@ -148,7 +135,7 @@ class EachEatery:
 
 
 
-def prediction(self, sentences, vocabulary, features, classifier):
+def prediction(sentences, vocabulary, features, classifier):
         loaded_vectorizer= CountVectorizer(vocabulary=vocabulary) 
         sentences_counts = loaded_vectorizer.transform(sentences)
         reduced_features = features.transform(sentences_counts.toarray())
@@ -157,43 +144,338 @@ def prediction(self, sentences, vocabulary, features, classifier):
  
 
 class SentimentClassification(object):
-            
-    
-        def __init__(self, eatery_id_list):
+        """
+        cant do per eatery because then, All the classifiers must be loaded
+        simultaneously, which again puts too much pressure on the memory of the
+        server, So its better to load as much as reviews in the memory as
+        possible, I guess even of you load 10 million reviews in 240Gb ram,
+        there would still be tons of memory left.
+        """
+        def __init__(self, sentences):
                 with cd(SentimentClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
                         self.features =  joblib.load(SentimentFeatureFileName)
                         self.vocabulary = joblib.load(SentimentVocabularyFileName)
                         self.classifier= joblib.load(SentimentClassifierFileName)
-                self.eatery_id_list = eatery_id_list #list of ids 
+                self.sentences = sentences
+                print Terminal.green("SentimentClassification loaded")
+        def run(self):
+                sentiments = prediction(self.sentences, self.vocabulary, self.features, self.classifier)
+                return sentiments
 
-                review_list = list()
+class TagClassification(object):
+        """
+        makes sure runs after SentimentClassification
+        The input to this class will be in the form 
+        return zip(eatery_ids, review_ids, sentences, review_time, sentiments)
+        [(eatery_id, review_id, sentences, review_time, sentiment), ...]
+        """
+        def __init__(self, sentences):
+                with cd(TagClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+                        self.features =  joblib.load(TagFeatureFileName)
+                        self.vocabulary = joblib.load(TagVocabularyFileName)
+                        self.classifier = joblib.load(TagClassifierFileName)
+                self.sentences = sentences
+                print Terminal.green("TagClassification loaded")
+
+        def run(self):
+                result = prediction(self.sentences, self.vocabulary, self.features, self.classifier)
+                return result
+                
+
+
+class ServiceClassification(object):
+        def __init__(self, sentences):        
+                with cd(ServiceClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+                        self.features =  joblib.load(ServiceFeatureFileName)
+                        self.vocabulary = joblib.load(ServiceVocabularyFileName)
+                        self.classifier= joblib.load(ServiceClassifierFileName)
+                self.sentences = sentences 
+                print Terminal.green("ServiceClassification loaded")
+
+        def run(self):
+                result = prediction(self.sentences, self.vocabulary, self.features, self.classifier)
+                return result
+                
+            
+class FoodClassification(object):
+        def __init__(self, sentences):        
+            
+                with cd(FoodClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+                        self.features =  joblib.load(FoodFeatureFileName)
+                        self.vocabulary = joblib.load(FoodVocabularyFileName)
+                        self.classifier= joblib.load(FoodClassifierFileName)
+                self.sentences = sentences
+                print Terminal.green("FoodClassification loaded")
+
+        def run(self):
+                result = prediction(self.sentences, self.vocabulary, self.features, self.classifier)
+                return result
+class CostClassification(object):
+        def __init__(self, sentences):        
+                with cd(CostClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+                        self.features =  joblib.load(CostFeatureFileName)
+                        self.vocabulary = joblib.load(CostVocabularyFileName)
+                        self.classifier= joblib.load(CostClassifierFileName)
+                self.sentences = sentences
+                print Terminal.green("CostClassification loaded")
+
+        def run(self):
+                result = prediction(self.sentences, self.vocabulary, self.features, self.classifier)
+                return result
+
+class AmbienceClassification(object):
+        def __init__(self, sentences):        
+                with cd(AmbienceClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+                        self.features =  joblib.load(AmbienceFeatureFileName)
+                        self.vocabulary = joblib.load(AmbienceVocabularyFileName)
+                        self.classifier= joblib.load(AmbienceClassifierFileName)
+                self.sentences = sentences
+                print Terminal.green("AmbienceClassification loaded")
+
+        def run(self):
+                result = prediction(self.sentences, self.vocabulary, self.features, self.classifier)
+                return result
+
+
+
+
+
+
+
+class ClassifiyReviews(object):
+        def __init__(self, eatery_id_list):
+                self.np_extractor = extract.TermExtractor() 
+                self.eatery_id_list = eatery_id_list #list of ids 
+                
+                self.review_list = list()
                 for eatery_id in self.eatery_id_list:
-                        review_list.extend([(eatery_id, post.get("review_id"), post.get("review_text"),
+                        warnings.warn("Fushing whole atery") 
+                        MongoScriptsReviews.flush_eatery(eatery_id)
+                        MongoScriptsReviews.insert_eatery_into_results_collection(eatery_id)
+                        self.review_list.extend([(eatery_id, post.get("review_id"), post.get("review_text"),
                                 post.get("review_time")) for post in
                                 reviews.find({"eatery_id": eatery_id})])
 
+                print "len of all reviews %s"%len(self.review_list)
                 ##review_list at this point will be in the form 
                 ##[(review_id, review_text, review_time), ()]
 
                 ##now tokenizing all the reviews 
-                tokenized_reviews = list() 
-                for (eatery_id, review_id, review_text, review_time) in review_list:
+                self.tokenized_reviews = list() 
+                for (eatery_id, review_id, review_text, review_time) in self.review_list:
                             sentences = self.sent_tokenize_review(review_text)
-                            tokenized_reviews.extend(map(lambda sent: (eatery_id, review_id, sent,
+                            self.tokenized_reviews.extend(map(lambda sent: (eatery_id, review_id, sent,
                                 review_time), sentences))
 
+                print "len of all sentences %s"%len(self.tokenized_reviews)
                 ##this will return a list of quadruple with each element will
-                ##a tokenixed sentences form the review whose id is the second
-                ##element 
+                ##a tokenized sentences form the review whose id is the second
+                ##element, tokenized reviews will in the form 
+                ##(eatery_id, review_id, sentence, review_time)
 
-                sentences = zip(*tokenized_reviews)[2]
-                predicted_tags = sentence, self.vocabulary, self.features, self.classifier)
+        def run(self):
+                eatery_ids, review_ids, sentences, review_time = zip(*self.tokenized_reviews)
+                
+                ##prediction of sentiments 
+                sentiment_instance = SentimentClassification(sentences)
+                sentiments = sentiment_instance.run()
+                del sentiment_instance
+                print Terminal.green("Sentiment Instance Deleted")
+                time.sleep(10)
+
+                ##predcting tags
+                tag_instance = TagClassification(sentences)
+                tags = tag_instance.run()
+                del tag_instance
+                print Terminal.green("Tag Instance Deleted")
+                time.sleep(10)
+                
+                
+                ##combing_whole_list
+                ##will be in the form [(eatery_id, review_id, sentence,
+                ##review_time, sentiment, tag)]
+                sentiment_tag_list = zip(eatery_ids, review_ids, sentences,
+                        review_time, sentiments, tags)
+
+                ##now all the lists for food, ambience, service etc has been
+                #generated
+                self.filter_on_tag(sentiment_tag_list)
+
+                ##going for food sub tag classification 
+                f_eatery_ids, f_reviews_ids, f_sentences, f_review_time, f_sentiment, \
+                        f_tags = zip(*self.food) 
+                f_instance = FoodClassification(f_sentences)
+                f_predictions = f_instance.run()
+                del f_instance
+                print Terminal.green("Food Instance Deleted")
+                time.sleep(10)
+
+                ##get all the noun phrases for the food sentences 
+                self.nouns = self.extract_noun_phrases(f_sentences)
+                self.all_food = zip(f_reviews_ids, f_sentences, f_tags, f_sentiment,
+                        f_predictions, self.nouns, f_review_time)
 
 
 
+                ##going for ambience sub tag classification 
+                a_eatery_ids, a_reviews_ids, a_sentences, a_review_time, a_sentiment, \
+                        a_tags = zip(*self.ambience) 
+                a_instance = AmbienceClassification(a_sentences)
+                a_predictions = a_instance.run()
+                del a_instance
+                self.all_ambience = zip(a_reviews_ids, a_sentences, a_tags,
+                        a_sentiment, a_predictions, a_review_time)
+                print Terminal.green("Ambience Instance Deleted")
+                time.sleep(10)
 
 
-        @print_execution
+                ##going for cost sub tag classification 
+                c_eatery_ids, c_reviews_ids, c_sentences, c_review_time, c_sentiment, \
+                        c_tags = zip(*self.cost) 
+                c_instance = CostClassification(c_sentences)
+                c_predictions = c_instance.run()
+                del c_instance
+                self.all_cost = zip(c_reviews_ids, c_sentences, c_tags,
+                        c_sentiment, c_predictions, c_review_time)
+                print Terminal.green("Cost Instance Deleted")
+                time.sleep(10)
+
+                ##going for service sub tag classification 
+                s_eatery_ids, s_reviews_ids, s_sentences, s_review_time, s_sentiment, \
+                        s_tags = zip(*self.service) 
+                s_instance = ServiceClassification(c_sentences)
+                s_predictions = s_instance.run()
+                del s_instance
+                self.all_service = zip(s_reviews_ids, s_sentences, s_tags,
+                        s_sentiment, s_predictions, s_review_time)
+                print Terminal.green("Service Instance Deleted")
+                time.sleep(10)
+
+
+                        
+
+                self.mongo_operations()
+        def mongo_operations(self):
+                #First of all the reviews for all the eateries must be present
+                ##the result database 
+                print Terminal.green("Updating reviews")
+                for (eatery_id, review_id, review_text, review_time) in\
+                        self.review_list:
+                        r_reviews.update({"review_id": review_id}, {"$set":
+                            {"eatery_id": eatery_id, "review_text":
+                                review_text, "review_time": review_time}}, upsert=True, multi=False)
+
+                ##storing all food sentences
+                print Terminal.green("Updating food sentences")
+                for (review_id, sentence, tag, sentiment, sub_tag, noun,
+                        review_time) in self.all_food:
+                        r_reviews.update({"review_id": review_id},\
+                                {"$push": {"food_result": [sentence, tag,
+                                    sentiment, sub_tag, noun, review_time]}},
+                                upsert=False)
+                
+                print Terminal.green("Updating cost sentences")
+                for (review_id, sentence, tag, sentiment, sub_tag, \
+                        review_time) in self.all_cost:
+                        r_reviews.update({"review_id": review_id},\
+                                {"$push": {"cost_result": [sentence, tag,
+                                    sentiment, sub_tag, review_time]}},
+                                upsert=False)
+                
+                print Terminal.green("Updating service sentences")
+                for (review_id, sentence, tag, sentiment, sub_tag, \
+                        review_time) in self.all_service:
+                        r_reviews.update({"review_id": review_id},\
+                                {"$push": {"service_result": [sentence, tag,
+                                    sentiment, sub_tag, review_time]}},
+                                upsert=False)
+                
+                print Terminal.green("Updating ambience sentences")
+                for (review_id, sentence, tag, sentiment, sub_tag, \
+                        review_time) in self.all_ambience:
+                        r_reviews.update({"review_id": review_id},\
+                                {"$push": {"ambience_result": [sentence, tag,
+                                    sentiment, sub_tag, review_time]}},
+                                upsert=False)
+                        
+                print Terminal.green("Updating overall sentences")
+                for (eatery_id, review_time, sentence, review_time, sentiment,\
+                        tag) in self.overall:
+                        r_reviews.update({"review_id": review_id},\
+                                {"$push": {"overall": [sentence, tag,
+                                    sentiment, review_time]}},
+                                upsert=False)
+                
+                print Terminal.green("Updating place sentences")
+                for (eatery_id, review_time, sentence, review_time, sentiment,\
+                        tag) in self.place:
+                        r_reviews.update({"review_id": review_id},\
+                                {"$push": {"place_sentences": [sentence, tag,
+                                    sentiment]}},
+                                upsert=False)
+
+                for (eatery_id, review_time, sentence, review_time, sentiment,\
+                        tag) in self.cuisine:
+                        r_reviews.update({"review_id": review_id},\
+                                {"$push": {"cuisine_sentences": [sentence, tag,
+                                    sentiment]}},
+                                upsert=False)
+
+                for (eatery_id, review_time, sentence, review_time, sentiment,\
+                        tag) in self.menu:
+                        r_reviews.update({"review_id": review_id},\
+                                {"$push": {"menu_result": [sentence, tag,
+                                    sentiment, review_time]}},
+                                upsert=False)
+    
+                ##Finding places and storing in mongodb 
+                ##TODO
+                ##to save time for semo place_name skipped
+                for (eatery_id, review_time, sentence, review_time, sentiment,\
+                        tag) in self.place:
+                        #place_name = self.extract_places(sentence)
+                        place_name = []
+                        if bool(place_name):
+                                r_reviews.update({"review_id": review_id},\
+                                {"$push": {"places_result": place_name}},
+                                upsert=False)
+                        
+                ##Finding cuisine and storing in mongodb 
+                for (eatery_id, review_time, sentence, review_time, sentiment,\
+                        tag) in self.cuisine:
+                        cuisine_name = self.extract_cuisines(sentence)
+                        if bool(cuisine_name):
+                                r_reviews.update({"review_id": review_id},\
+                                {"$push": {"cuisine_result": cuisine_name}},
+                                upsert=False)
+                        
+                        
+                return 
+
+
+        def filter_on_tag(self, _list): 
+                """
+                all lists will be a list of tuoles in the form 
+                ##will be in the form [(eatery_id, review_id, sentence,
+                ##review_time, sentiment, tag)]
+                """
+                self.food = filter(lambda _object: _object[5] == "food", _list)
+                self.cost = filter(lambda _object: _object[5] == "cost", _list)
+                self.ambience = filter(lambda _object: _object[5] == "ambience", _list)
+                self.service = filter(lambda _object: _object[5] == "service", _list)
+                self.overall = filter(lambda _object: _object[5] == "overall", _list)
+                self.place = filter(lambda _object: _object[5] == "place", _list)
+                self.cuisine = filter(lambda _object: _object[5] == "cuisine", _list)
+                self.menu = filter(lambda _object: _object[5] == "menu", _list)
+                return     
+            
+        def extract_noun_phrases(self, sentences):
+                __nouns = list()
+                for sent  in sentences:
+                            __nouns.append([e[0] for e in self.np_extractor(sent)])
+
+                return __nouns  
+
         def sent_tokenize_review(self, review_text):
                 """
                 Tokenize self.reviews tuples of the form (review_id, review) to sentences of the form (review_id, sentence)
@@ -208,253 +490,7 @@ class SentimentClassification(object):
                      new_sentences.extend(sentence.split("but"))
                 return filter(None, new_sentences)
         
-
-
-
-
-
-class PerReview:
-        def __init__(self, review_id, review_text, review_time, eatery_id):
-                """
-                Lowering the review text
-                """
-                self.review_id, self.review_time, self.eatery_id = review_id, review_time, eatery_id
-
-                """ 
-                print review_text
-                encoded_text = SolveEncoding.to_unicode_or_bust(review_text)
-                print encoded_text
-                stemmed_text = PerReview.snowball_stemmer(encoded_text)
-                print stemmed_text
-                processed_text = PerReview.pre_process_text(review_text)
-                """
-
-                self.review_text= review_text.encode("ascii", "ignore")
-                self.cuisine_name = list()
-                self.places_names = list()
-                self.np_extractor = extract.TermExtractor() 
-                self.run()
-
-        @staticmethod
-        def snowball_stemmer(sentences):
-                stemmer = SnowballStemmer("english")
-                return [stemmer.stem(sent) for sent in sentences]
-
-
-        @staticmethod 
-        def pre_process_text(sentences):
-                return [PreProcessText.process(sent) for sent in sentences]
-
-
-
-        def print_execution(func):
-                "This decorator dumps out the arguments passed to a function before calling it"
-                argnames = func.func_code.co_varnames[:func.func_code.co_argcount]
-                fname = func.func_name
-                def wrapper(*args,**kwargs):
-                        start_time = time.time()
-                        print Terminal.green("Now {0} have started executing".format(func.func_name))
-                        result = func(*args, **kwargs)
-                        print Terminal.green("Total time taken by {0} for execution is --<<{1}>>".format(func.func_name, (time.time() - start_time)))
-                        
-                        return result
-                return wrapper
-        
-        def get_args(self):
-                print self.__dict__
-        
-
-        @print_execution
-        def run(self):
-                print Terminal.green("Now processing review id --<<{0}>>".format(self.review_id))
-                self.__sent_tokenize_review() #Tokenize reviews, makes self.reviews_ids, self.sentences
-                self.__predict_tags()          #Predict tags, makes self.predict_tags
-                self.__predict_sentiment() #makes self.predicted_sentiment
-
-                self.all_sent_tag_sentiment = zip(self.sentences, self.tags, self.sentiments)
-                
-                self.__filter_on_category() #generates self.food, self.cost, self.ambience, self.service
-                
-
-                self.__food_sub_tag_classification()
-                self.__service_sub_tag_classification()
-                self.__cost_sub_tag_classification()
-                self.__ambience_sub_tag_classification()
-                self.__extract_places()
-                self.__extract_cuisines()
-                self.__extract_noun_phrases() #makes self.noun_phrases
-                self.__append_time_to_overall()
-                self.__append_time_to_menu()
-                self.__update_cuisine_places() 
-                self.__update_review_result()
-                return 
-
-        
-        @print_execution
-        def __sent_tokenize_review(self):
-                """
-                Tokenize self.reviews tuples of the form (review_id, review) to sentences of the form (review_id, sentence)
-                and generates two lists self.review_ids and self.sentences
-                """
-                print self.review_text
-                
-                text = PreProcessText.process(self.review_text)
-                self.sentences = tokenizer.tokenize(text)
-                ##now breking sentences on the basis of but
-                new_sentences = list()
-                for sentence in self.sentences:
-                     new_sentences.extend(sentence.split("but"))
-                self.sentences = filter(None, new_sentences)
-                print self.sentences
-                #processed_text = PreProcessText.remove_and_replace(text)
-                return
-        
-        @print_execution
-        def __predict_tags(self):
-                """
-                Predict tags of the sentence which were being generated by self.sent_tokenize_reviews
-                """
-                self.tags = self.prediction(self.sentences, tag_vocabulary,
-                                            tag_features, tag_classifier)
-                print "Tags for %s review id are %s"%(self.tags,
-                                                      self.review_id)
-                return
-
-        @print_execution
-        def __predict_sentiment(self):
-                """
-                Predict sentiment of self.c_sentences which were made by filtering self.sentences accoring to 
-                the specified category
-                """
-                self.sentiments = self.prediction(self.sentences, sentiment_vocabulary,
-                                            sentiment_features, sentiment_classifier)
-                print "Sentiments for %s review id are %s"%(self.sentiments,
-                                                      self.review_id)
-                return 
-     
-        @print_execution
-        def __filter_on_category(self):
-                __filter = lambda tag: [(sent, __tag, sentiment) for \
-                                        (sent,__tag, sentiment) in \
-                                    self.all_sent_tag_sentiment if __tag ==tag]
-                self.food, self.cost, self.ambience, self.service, self.null, \
-                    self.overall, self.places, self.cuisine, self.menu = \
-                    __filter("food"),  __filter("cost"), __filter("ambience"),\
-                    __filter("service"), __filter("null"),  __filter("overall"), __filter("place"), __filter("cuisine"), __filter("menu")
-                return 
-
-        @print_execution
-        def __food_sub_tag_classification(self):
-                """
-                This deals with the sub classification of fodd sub tags
-                """
-                if not bool(self.food):
-                        self.all_food = []
-                        return 
-                self.food_sentences = zip(*self.food)[0]
-                self.food_sub_tags = self.prediction(self.food_sentences,
-                                                     food_vocabulary,
-                                            food_features, food_classifier)
-               
-                print Terminal.green("Here are the food sentences with predictions")
-                for (sent, tag) in zip(self.food_sentences, self.food_sub_tags):
-                            print (sent, tag)
-                
-                self.all_food = [[sent, tag, sentiment, sub_tag] for ((sent, tag, sentiment), sub_tag)\
-                        in zip(self.food, self.food_sub_tags)]
-
-                return  
-
-        @print_execution
-        def __service_sub_tag_classification(self):
-                """
-                This deals with the sub classification of service sub tags
-		and generates self.all_service with an element in the form 
-		(sent, tag, sentiment, sub_tag_service)
-                """
-                if not bool(self.service):
-                        self.all_service = []
-                        return 
-
-                self.service_sentences = zip(*self.service)[0]
-                self.service_sub_tags = self.prediction(self.service_sentences,
-                                                     service_vocabulary,
-                                            service_features, service_classifier)
-               
-                print Terminal.green("Here are the service sentences with predictions")
-                for (sent, tag) in zip(self.service_sentences, self.service_sub_tags):
-                            print (sent, tag)
-                
-                self.all_service = [[sent, tag, sentiment, sub_tag] for ((sent, tag, sentiment), sub_tag)\
-                        in zip(self.service, self.service_sub_tags)]
-
-                map(lambda __list: __list.append(self.review_time), self.all_service)
-                return 
-
-        @print_execution
-        def __cost_sub_tag_classification(self):
-                """
-                This deals with the sub classification of cost sub tags
-                
-                self.all_cost = [(sent, "cost", sentiment, "cost-overall",), .....]
-                """
-                if not bool(self.cost):
-                        self.all_cost = []
-                        return 
-                self.cost_sentences = zip(*self.cost)[0]
-                self.cost_sub_tags = self.prediction(self.cost_sentences,
-                                                     cost_vocabulary,
-                                            cost_features, cost_classifier)
-               
-                print Terminal.green("Here are the cost sentences with predictions")
-                for (sent, tag) in zip(self.cost_sentences, self.cost_sub_tags):
-                            print (sent, tag)
-                
-                self.all_cost = [[sent, tag, sentiment, sub_tag] for ((sent, tag, sentiment), sub_tag)\
-                                 in zip(self.cost, self.cost_sub_tags)]
-                
-                map(lambda __list: __list.append(self.review_time), self.all_cost)
-                return
-
-        @print_execution
-        def __ambience_sub_tag_classification(self):
-                """
-                This deals with the sub classification of fodd sub tags
-                """
-                if not bool(self.ambience):
-                        self.all_ambience = []
-                        return 
-                self.ambience_sentences = zip(*self.ambience)[0]
-                self.ambience_sub_tags = self.prediction(self.ambience_sentences,
-                                                     ambience_vocabulary,
-                                            ambience_features, ambience_classifier)
-               
-                print Terminal.green("Here are the ambience sentences with predictions")
-                for (sent, tag) in zip(self.ambience_sentences, self.ambience_sub_tags):
-                            print (sent, tag)
-                
-                self.all_ambience = [[sent, tag, sentiment, sub_tag] for ((sent, tag, sentiment), sub_tag)\
-                        in zip(self.ambience, self.ambience_sub_tags)]
-
-               
-                map(lambda __list: __list.append(self.review_time), self.all_ambience)
-                return 
-
-
-        @print_execution
-        def __append_time_to_overall(self):
-                self.overall = [list(e) for e in self.overall]
-                map(lambda __list: __list.append(self.review_time), self.overall)
-                return  
-        
-        @print_execution
-        def __append_time_to_menu(self):
-                self.menu = [list(e) for e in self.menu]
-                map(lambda __list: __list.append(self.review_time), self.menu)
-                return
-            
-        @print_execution
-        def __extract_places(self):
+        def extract_places(self, sentence):
                 """
                 This function filters all the places mentioned in self.places variable
                 it generates a list of places mentioned in the self.places wth the help
@@ -487,58 +523,29 @@ class PerReview:
                                 return None
 
 
-                for (sent, sentiment, tag) in self.places:
-                            try:
-                                    result = loads(corenlpserver.parse(sent))
-                                    __result = [(e[0], e[1].get("NamedEntityTag")) for e in result["sentences"][0]["words"]]
-                                    self.places_names.extend(filter_places(__result))
+                try:
+                            result = loads(corenlpserver.parse(sentence))
+                            __result = [(e[0], e[1].get("NamedEntityTag")) for e in result["sentences"][0]["words"]]
+                            place_name = filter_places(__result)
+                            print "%s in %s"%(place_name, sentence)
                             
-                            except Exception as e:
-                                    print e, "__extract_place", self.review_id
-                                    pass
-                print Terminal.green("Here are the places names for review id %s"%self.review_id)
-                print self.places_names
-                return
+                except Exception as e:
+                            print e, "__extract_place", sentence
+                            place_name = []
+                            
+                return place_name 
         
-        @print_execution
-        def __extract_cuisines(self):
+        def extract_cuisines(self, sentence):
                 """
                 This extracts the name of the cuisines fromt he cuisines sentences
                 """
 
 		
-                for (sent, tag, sentiment) in self.cuisine:
-                        self.cuisine_name.extend(self.np_extractor(sent))
-		        		
-
-                self.cuisine_name = [np[0] for np in self.cuisine_name if np[0]]
-                print Terminal.green("Here are the cuisine names for review id %s"%self.review_id)
-                print self.cuisine_name
-                return 
-
+                cuisine_name = self.np_extractor(sentence)
+                result = [np[0] for np in cuisine_name if np[0]]
+                print "%s in %s"%(result, sentence)
+                return result
                        
-
-
-        @print_execution
-        def __extract_noun_phrases(self):
-                """
-                Extarct Noun phrases for the self.c_sentences for each sentence and outputs a list 
-                self.sent_sentiment_nps which is of the form 
-                [('the only good part was the coke , thankfully it was outsourced ', 
-                                            u'positive', [u'good part']), ...]
-                """
-                __nouns = list()
-                for (sent, tag, sentiment, sub_tag) in self.all_food:
-                            __nouns.append([e[0] for e in self.np_extractor(sent)])
-
-                self.all_food_with_nps = [[sent, tag, sentiment, sub_tag, nps] for ((sent, tag, sentiment, sub_tag,), nps) in 
-                        zip(self.all_food, __nouns)]
-
-                map(lambda __list: __list.append(self.review_time), self.all_food_with_nps)
-                print __nouns
-                return 
-
-        @print_execution
         def __update_cuisine_places(self):
                 """
                 update cuisine and places to the eatery
@@ -546,32 +553,6 @@ class PerReview:
                 MongoScriptsReviews.update_eatery_places_cusines(self.eatery_id, self.places_names, self.cuisine_name)        
                 return 
                 
-
-
-        
-        @print_execution
-        def __update_review_result(self):
-                MongoScriptsReviews.update_review_result_collection(
-                        review_id = self.review_id, 
-                        eatery_id = self.eatery_id, 
-                        food = self.food,
-                        cost = self.cost,
-                        ambience = self.ambience,
-                        null = self.null,
-                        overall = self.overall,
-                        service = self.service, 
-                        place_sentences = self.places, 
-                        cuisine_sentences= self.cuisine,
-                        food_result= self.all_food_with_nps, 
-                        service_result = self.all_service, 
-                        menu_result = self.menu,
-                        cost_result = self.all_cost, 
-                        ambience_result = self.all_ambience,
-                        places_result= self.places_names, 
-                        cuisine_result = self.cuisine_name) 
-                return 
-
-
 
 class DoClusters(object):
         """
@@ -1020,86 +1001,25 @@ if __name__ == "__main__":
         
             (options, args) = parser.parse_args()
             PATH_COMPILED_CLASSIFIERS = options.path_compiled_classifiers
-
-
-            with cd(ServiceClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
-                        service_features =  joblib.load(ServiceFeatureFileName)
-                        service_vocabulary = joblib.load(ServiceVocabularyFileName)
-                        service_classifier= joblib.load(ServiceClassifierFileName)
-
         
-            print Terminal.green("<<%s>> classifiers and vocabulary loaded"%"Service") 
-        
-            with cd(SentimentClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
-                        sentiment_features =  joblib.load(SentimentFeatureFileName)
-                        sentiment_vocabulary = joblib.load(SentimentVocabularyFileName)
-                        sentiment_classifier= joblib.load(SentimentClassifierFileName)
-        
-            print Terminal.green("<<%s>> classifiers and vocabulary loaded"%"Sentiment") 
-
-
-            with cd(TagClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
-                        tag_features =  joblib.load(TagFeatureFileName)
-                        tag_vocabulary = joblib.load(TagVocabularyFileName)
-                        tag_classifier= joblib.load(TagClassifierFileName)
-            print Terminal.green("<<%s>> classifiers and vocabulary loaded"%"Tag") 
-
-            with cd(FoodClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
-                        food_features =  joblib.load(FoodFeatureFileName)
-                        food_vocabulary = joblib.load(FoodVocabularyFileName)
-                        food_classifier= joblib.load(FoodClassifierFileName)
-            print Terminal.green("<<%s>> classifiers and vocabulary loaded"%"Food") 
-
-            with cd(CostClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
-                        cost_features =  joblib.load(CostFeatureFileName)
-                        cost_vocabulary = joblib.load(CostVocabularyFileName)
-                        cost_classifier= joblib.load(CostClassifierFileName)
-            print Terminal.green("<<%s>> classifiers and vocabulary loaded"%"Cost") 
-
-            with cd(AmbienceClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
-                        ambience_features =  joblib.load(AmbienceFeatureFileName)
-                        ambience_vocabulary = joblib.load(AmbienceVocabularyFileName)
-                        ambience_classifier= joblib.load(AmbienceClassifierFileName)
-            print Terminal.green("<<%s>> classifiers and vocabulary loaded"%"Ambience") 
             """
-            eatery_ids_one = [ post.get("eatery_id") for post in\
-                    eateries.find({"eatery_area_or_city": "Delhi NCR"}) if\
-                    reviews.find({"eatery_id": post.get("eatery_id")}).count()> 20]
+            eatery_ids = ["166", "309790", "308322", "834", "1626", "400", "18034053", "6127", "308637", "310078"]
             """
-            eatery_ids_one = list()
-            for post in eateries.find({"eatery_area_or_city": "Delhi NCR"}):
-                    number = reviews.find({"eatery_id": post.get("eatery_id")}).count()
-                    if 100<number<200:
-                            eatery_ids_one.append(post.get("eatery_id"))
-            
-            for eatery_id in eatery_ids_one[0:1]:
-                    start = time.time()
-                    instance = EachEatery(eatery_id)
-                    result = instance.return_non_processed_reviews()
-            
-            
-                    for element in result:
-                                instance = PerReview(*element)
-            
-                    instance = DoClusters(eatery_id)
-                    instance.run()
-                    print time.time() - start
-            """
-            #ins = DoClusters(eatery_id)
-            #ins.run()
-            i = 0
-            for post in eateries_results_collection.find():
-                    eatery_id = post.get("eatery_id")
-                    instance = EachEatery(eatery_id)
-                    result = instance.return_non_processed_reviews()
-                    result = [(e[0], e[1], e[2], eatery_id) for e in result]
-                    for element in result:
-                            instance = PerReview(element[0], element[1], element[2], element[3])
-                            instance.run()
-                    ins = DoClusters(eatery_id)
-                    ins.run()
-                    print "\n\n"
-                    print "This is the count %s"%i
-                    i += 1
+            eatery_ids_one = [ post.get("eatery_id") for post in  eateries.find({"eatery_area_or_city": "Delhi NCR"}) if reviews.find({"eatery_id": post.get("eatery_id")}).count() >= 500]
+            Instance = ClassifiyReviews(eatery_ids_one)
+            Instance.run()
+
+            """ 
+            ins = DoClusters("310078")
+            ins.run()
+            for eatery_id in eatery_ids:
+                    print Terminal.green("Clustering %s"%eatery_id)
+                    try:
+                        ins = DoClusters(eatery_id)
+                        ins.run()
+                    except Exception as e:
+                        print e
+                        print eatery_id
 
             """
+

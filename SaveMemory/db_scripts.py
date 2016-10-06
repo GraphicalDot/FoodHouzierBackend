@@ -12,13 +12,8 @@ import itertools
 import geocoder
 import blessings
 
-file_path = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(file_path)
-sys.path.append(parent_dir)
 
-os.chdir(parent_dir)
 from configs import reviews, eateries, r_reviews, r_eateries, r_junk_nps, r_clip_eatery
-os.chdir(file_path)
 Terminal = blessings.Terminal()
 
 
@@ -99,6 +94,7 @@ class MongoScriptsReviews(object):
         def flush_eatery(eatery_id):
                 print r_eateries.remove({"eatery_id": eatery_id})
                 print r_reviews.remove({"eatery_id": eatery_id})
+                print r_clip_eatery.remove({"eatery_id": eatery_id})
                 return 
 
 
@@ -189,26 +185,26 @@ class MongoScriptsDoClusters(object):
 
 
                 if category == "food":
-                        food = [r_reviews.find_one({"review_id": review_id})["food_result"] for review_id in  review_list]
-                        flatten_food = list(itertools.chain(*food))
+                        food = [r_reviews.find_one({"review_id": review_id}).get("food_result") for review_id in  review_list]
+                        flatten_food = list(itertools.chain(*filter(None, food)))
                         
                         return flatten_food          
                         
                 
                 if category == "overall":
-                        result = [r_reviews.find_one({"review_id": review_id})[category] for review_id in review_list]
-                        result = list(itertools.chain(*result))
+                        result = [r_reviews.find_one({"review_id": review_id}).get(category) for review_id in review_list]
+                        result = list(itertools.chain(*filter(None, result)))
                         return result
                     
                 if category == "menu_result":
-                        result = [r_reviews.find_one({"review_id": review_id})[category] for review_id in review_list]
-                        result = list(itertools.chain(*result))
+                        result = [r_reviews.find_one({"review_id": review_id}).get(category) for review_id in review_list]
+                        result = list(itertools.chain(*filter(None, result)))
                         return result
        
                     
-                result = [r_reviews.find_one({"review_id": review_id})[category] for review_id in review_list]
+                result = [r_reviews.find_one({"review_id":review_id}).get(category) for review_id in review_list]
                 
-                result = list(itertools.chain(*result))
+                result = list(itertools.chain(*filter(None, result)))
                 #[[u'super-positive', u'ambience-overall'], [u'super-positive', u'ambience-overall'], 
                 #[u'neutral', u'ambience-overall']]
                 return [[sentiment, sub_tag, review_time] for (sent, tag, sentiment, sub_tag, review_time) in result]
