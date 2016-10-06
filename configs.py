@@ -14,6 +14,7 @@ ElasticsearchConfig = dict(
 )
 
 
+ELASTICSEARCH_IP = ElasticsearchConfig["ip"]
 ES_CLIENT = Elasticsearch(ElasticsearchConfig["ip"], timeout=30)
 
 

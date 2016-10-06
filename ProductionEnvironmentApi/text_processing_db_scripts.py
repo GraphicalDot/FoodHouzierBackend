@@ -52,7 +52,8 @@ class MongoScriptsReviews(object):
                 eatery = eateries.find_one({"eatery_id": eatery_id}, {"_id": False, "__eatery_id": True, "eatery_id": True, "eatery_name": True, \
                         "eatery_address": True, "location": True,\
                         "eatery_area_or_city": True, "eatery_cost": True,\
-                        "pictures": True, "eatery_url": True})
+                        "pictures": True, "eatery_url": True,
+                                        "eatery_cuisine": True})
 
                 latitude, longitude = eatery.pop("location")
                 latitude, longitude = float(latitude), float(longitude)
@@ -65,7 +66,6 @@ class MongoScriptsReviews(object):
                         print "eatery_id <<%s>> has not lcoation, founded by google is <<%s>>"%(eatery_id, location)
                         eateries.update({"eatery_id": eatery_id}, {"$set": {"location": location}}, upsert=False)
                 eatery.update({"location": location})
-
                 print r_eateries.insert(eatery)
                 return 
 

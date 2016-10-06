@@ -3,7 +3,9 @@
 https://gist.github.com/lightsuner/5df39112b8507d15ede6
 https://gist.github.com/lukas-vlcek/5143799
 http://192.168.1.5:9200/_cluster/state?pretty&filter_nodes=true&filter_routing_table=true&filter_indices=dishes
+runs onlyon 1.4 version of elasticsearch 
 
+https://www.devops.zone/solr-elasticsearch/install-elasticsearch-1-4-on-debianubuntu/
 Author: kaali
 Dated: 9 June, 2015
 """
@@ -29,7 +31,7 @@ NUMBER_OF_DOCS = 10
 
 
 os.chdir(parent_dir_path)
-from configs import ES_CLIENT, r_eateries, bcolors, eateries, ElasticsearchConfig
+from configs import ES_CLIENT, ELASTICSEARCH_IP, r_eateries, bcolors, eateries
 os.chdir(file_path)
 
 Terminal = blessings.Terminal()
@@ -329,14 +331,10 @@ class ElasticSearchScripts(object):
                 ES_CLIENT.indices.create(index="eatery", body=self.settings)
                 ES_CLIENT.indices.put_mapping(index="eatery", doc_type="eatery", body = self.eatery_mappings)
                 print "{0}Mappings updated for  {1}  {2}".format(bcolors.OKGREEN, "eatery",  bcolors.RESET)
-                for __sub_category in ["overall", "menu"]:
-                                ES_CLIENT.indices.put_mapping(index="eatery", doc_type=__sub_category, body = {__sub_category: self.other_mappings })
-                                print "{0}Mappings updated for  {1}  {2}".format(bcolors.OKGREEN, __sub_category, bcolors.RESET)
-                
                 ##Inserting cusines names into cuisines index
                 cuisines_list = list()
                 ES_CLIENT.indices.put_mapping(index="eatery", doc_type="cuisines", body =self.cuisines_mappings)
-                for post in eateries_results_collection.find():
+                for post in r_eateries.find():
                         try:
                                 cuisines = post.get("eatery_cuisine")
                                 eatery_cuisine_split = cuisines.split(",")
@@ -346,6 +344,7 @@ class ElasticSearchScripts(object):
                                 print e, "In finding cusines"
                                 pass
                 __cuisines_list = [e.replace("Quick", "").replace("Bites", "").replace("Cuisines:", "").lstrip()  for e in set(cuisines_list)]
+
 
                 for cuisine in __cuisines_list:
                                 print "Updating cuisine %s"%cuisine
@@ -544,7 +543,7 @@ class ElasticSearchScripts(object):
                 r = requests.post("http://{0}:9200/_refresh".format(ELASTICSEARCH_IP))
                 
 
-                eatery = eateries_results_collection.find_one({"eatery_id": eatery_id})
+                eatery = r_eateries.find_one({"eatery_id": eatery_id})
 
                 __eatery_id = eatery["__eatery_id"]
                 eatery_id = eatery["eatery_id"]
@@ -552,7 +551,7 @@ class ElasticSearchScripts(object):
                 food_data = eatery["food"]
                 ambience_data = eatery["ambience"]
                 cost_data = eatery["cost"]
-                service_data = eatery["food"]
+                service_data = eatery["service"]
 
                 eatery_dict = dict()
                 __list = ['eatery_type', "__eatery_id", 'cuisines',  'eatery_longitude_latitude', 'eatery_id', 'eatery_highlights', 'eatery_address', \
@@ -593,7 +592,7 @@ class ElasticSearchScripts(object):
                                 "eatery_address": eatery_dict["eatery_address"]})
 
 
-
+                print eatery
                 l = ES_CLIENT.index(index="eatery", doc_type="eatery", body=eatery_dict)
                 l = ES_CLIENT.index(index="eatery", doc_type="menu", body=menu_data)
                 l = ES_CLIENT.index(index="eatery", doc_type="overall", body=overall_data)
@@ -613,7 +612,8 @@ class ElasticSearchScripts(object):
                                                 #__dish.update({"location": {"lat": latitude, "lon": longitude}})
                                                 __dish.update({"location": [longitude, latitude]})
                                                 __dish.update({"eatery_address": eatery_address})
-                                                
+
+                                                print __dish
                                                 l = ES_CLIENT.index(index=__category, doc_type=sub_category, body=__dish)
                                 	        print "%s for %s for eatery_id %s for dish_name <<%s>>"%(l, sub_category, eatery_id, __dish.get("name"))
                                 else:
@@ -1118,10 +1118,10 @@ class ElasticSearchScripts(object):
 if __name__ == "__main__":
             ElasticSearchScripts(renew_indexes=True)
             """
-            for post in eateries_results_collection.find():
+            for post in r_eateries.find():
                     __id = post.get("eatery_id")
             #for __id in [u'310159', u'307852', u'312114', u'18198477', u'18146368', u'17979576', u'306787', u'8234', u'309243', u'311835', u'313058', u'307853', u'17989123', u'17953918', u'18017241', u'307931', u'8893', u'303095', u'9354', u'4412', u'310094', u'9321', u'303092', u'5591', u'301001', u'301442', u'5732', u'5030', u'301131', u'4899', u'308322', u'8369', u'7070', u'305137', u'307360', u'8910', u'309792', u'308463', u'307330', u'306334', u'307454', u'91', u'304027', u'3392', u'2664', u'307146', u'308642', u'311182', u'310846', u'310396', u'8873', u'305681', u'18082196', u'312437', u'313384', u'304676']:
-                    ElasticSearchScripts.insert_eatery(__id)
             """
+            ElasticSearchScripts.insert_eatery("304655")
 
 

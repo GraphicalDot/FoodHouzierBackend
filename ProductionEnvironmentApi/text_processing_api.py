@@ -130,7 +130,7 @@ class EachEatery:
                 """
                 review_ids = MongoScriptsReviews.review_ids_to_be_processed(self.eatery_id)
                 if not review_ids:
-                        print Terminla.red("No reviews are to be processed")
+                        print Terminal.red("No reviews are to be processed")
                
                 
                 result = MongoScriptsReviews.reviews_with_text(review_ids, self.eatery_id)
