@@ -999,18 +999,21 @@ if __name__ == "__main__":
             eatery_ids_one = [ post.get("eatery_id") for post in\
                     eateries.find({"eatery_area_or_city": "Delhi NCR"}) if\
                     reviews.find({"eatery_id": post.get("eatery_id")}).count()> 20]
-            start = time.time()
-            eatery_id = "18070476"
-            instance = DoClusters(eatery_id)
-            instance.run()
+            
+            
+            for eatery_id in eatery_ids_one:
+                    start = time.time()
+                    instance = EachEatery(eatery_id)
+                    result = instance.return_non_processed_reviews()
+            
+            
+                    for element in result:
+                                instance = PerReview(*element)
+            
+                    instance = DoClusters(eatery_id)
+                    instance.run()
+                    print time.time() - start
             """
-            instance = EachEatery(eatery_id)
-            result = instance.return_non_processed_reviews()
-            
-            
-            for element in result:
-                            instance = PerReview(*element)
-            print time.time() - start
             #ins = DoClusters(eatery_id)
             #ins.run()
             i = 0
