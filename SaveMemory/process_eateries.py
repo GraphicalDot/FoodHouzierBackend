@@ -1006,12 +1006,23 @@ if __name__ == "__main__":
             eatery_ids = ["166", "309790", "308322", "834", "1626", "400", "18034053", "6127", "308637", "310078"]
             """
             eatery_ids_one = [ post.get("eatery_id") for post in  eateries.find({"eatery_area_or_city": "Delhi NCR"}) if reviews.find({"eatery_id": post.get("eatery_id")}).count() >= 500]
-            Instance = ClassifiyReviews(eatery_ids_one)
-            Instance.run()
+            j = 5
+            for i in eatery_ids_one:
+                    __list = eatery_ids_one[j: j+5]
+                    print __list
+                    Instance = ClassifiyReviews(__list)
+                    Instance.run()
+                    for eatery_id in __list:
+                            ins = DoClusters(eatery_id)
+                            ins.run()
+                            ElasticSearchScripts.insert_eatery(eatery_id)   
+                    j += 5
+                    if j == len(eatery_ids_one):
+                        break
+
+
 
             """ 
-            ins = DoClusters("310078")
-            ins.run()
             for eatery_id in eatery_ids:
                     print Terminal.green("Clustering %s"%eatery_id)
                     try:
