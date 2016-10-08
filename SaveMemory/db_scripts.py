@@ -11,11 +11,34 @@ import warnings
 import itertools
 import geocoder
 import blessings
+import warnings
 
-
+this_file_path = os.path.dirname(os.path.abspath(__file__))
+parent_dir_path = os.path.dirname(this_file_path)
+sys.path.append(parent_dir_path)
 from configs import reviews, eateries, r_reviews, r_eateries, r_junk_nps, r_clip_eatery
+
+
+
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("db_scripts")
+ch = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+
+
+logger.info('Hello baby')
+logger.error('Hello baby')
+
+
 Terminal = blessings.Terminal()
 
+
+def print_warnings(string):
+        return warnings.warn(terminal.yellow(str(string)))
 
 class MongoScriptsReviews(object):
         """
@@ -58,10 +81,11 @@ class MongoScriptsReviews(object):
                         g  = geocoder.google(eatery.get("eatery_address"))
                         longitude, latitude = g.geojson.get("geometry").get("coordinates")
                         location = [latitude, longitude]
-                        print "eatery_id <<%s>> has not lcoation, founded by google is <<%s>>"%(eatery_id, location)
+                        logger.info("eatery_id <<%s>> has not lcoation,\
+                                founded by google is <<%s>>"%(eatery_id, location))
                         eateries.update({"eatery_id": eatery_id}, {"$set": {"location": location}}, upsert=False)
                 eatery.update({"location": location})
-                print r_eateries.insert(eatery)
+                logger.info(r_eateries.insert(eatery))
                 return 
 
         @staticmethod
@@ -73,7 +97,8 @@ class MongoScriptsReviews(object):
                         
                         if bool(review_text) and review_text != " ":
                                 review_list.append((review_id, review_text, review_time, eatery_id))
-                print len(review_list)
+                logger.info("The length of review for eatery id %s is\
+                        %s"%(eatery_id, len(review_list)))
                 return review_list
 
         @staticmethod
@@ -84,7 +109,8 @@ class MongoScriptsReviews(object):
                         "converted_epoch": True, "review_time": True})    
                 kwargs.update({"review_text": review.get("review_text"), "review_time": review.get("review_time")})
 
-                print r_reviews.update({"review_id": review_id}, {"$set": kwargs}, upsert=True, multi=False)
+                logger.info(r_reviews.update({"review_id": review_id}, {"$set":
+                    kwargs}, upsert=True, multi=False))
                 
                 return 
 
@@ -227,14 +253,12 @@ class MongoScriptsDoClusters(object):
                                 r_eateries.update({"eatery_id": self.eatery_id}, {"$set": \
                                         {"food.more_{0}".format(category): nps[25:]}}, upsert=False)
                                 
-                                
-                                
                                 r_eateries.update({"eatery_id": self.eatery_id}, {"$set": \
                                         {"dropped_nps": dropped_nps}}, upsert=False) 
                                 r_junk_nps.update({"eatery_id": self.eatery_id}, \
                                         {"$set": {"excluded_nps": excluded_nps}}, upsert=True) 
-                        except Exception as e:
-                                print e
+                        except Exception, e:
+                                logger.error('Error in updateing eatery %s'%self.eatery_id, exc_info=True)
 
                         
                         
@@ -243,7 +267,7 @@ class MongoScriptsDoClusters(object):
                                 dish.pop("similar")
                                 dish.pop("timeline")
                                 short_nps.append(dish)
-                        print "udpating clip eatery with top three dishes data"
+                        logger.info("udpating clip eatery with top three dishes data")
                         r_clip_eatery.update({"eatery_id": self.eatery_id}, {"$set": \
                                         {"food.{0}".format(category):short_nps}}, upsert=True)
 

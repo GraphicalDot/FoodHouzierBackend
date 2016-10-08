@@ -40,6 +40,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.externals import joblib
 from Sentence_Tokenization.Sentence_Tokenization_Classes import SentenceTokenizationOnRegexOnInterjections
 
+
 from configs import cd, SolveEncoding, corenlpserver
 from configs import SentimentClassifiersPath, TagClassifiersPath,\
                     FoodClassifiersPath, ServiceClassifiersPath,\
@@ -937,17 +938,20 @@ class DoClusters(object):
                         for sentiment in self.sentiment_tags:
                             sentences_dict.update({sub_tag: {"sentiment": list(), "timeline": list(), "total_sentiments": 0}})
 
-
                 for __sentiment, __category, review_time in noun_phrases:
-                        timeline = sentences_dict.get(__category).get("timeline")
-                        timeline.append((__sentiment, review_time))
-                        sentiment = sentences_dict.get(__category).get("sentiment")
-                        sentiment.append(__sentiment)
-                        total_sentiments = sentences_dict.get(__category).get("total_sentiments") +1 
+                        try:
+                            timeline = sentences_dict.get(__category).get("timeline")
+                            timeline.append((__sentiment, review_time))
+                            sentiment = sentences_dict.get(__category).get("sentiment")
+                            sentiment.append(__sentiment)
+                            total_sentiments = sentences_dict.get(__category).get("total_sentiments") +1 
 
-                        sentences_dict.update({
-                            __category: {"sentiment": sentiment, "timeline": timeline, "total_sentiments": total_sentiments}})
-    
+                            sentences_dict.update({
+                                __category: {"sentiment": sentiment, "timeline": timeline, "total_sentiments": total_sentiments}})
+                        except Exception as e:
+                                print e
+                                pass
+
                 return sentences_dict
 
 
@@ -972,11 +976,12 @@ if __name__ == "__main__":
             PATH_COMPILED_CLASSIFIERS = options.path_compiled_classifiers
         
             eatery_ids = ["166", "309790", "308322", "834", "1626", "400", "18034053", "6127", "308637", "310078"]
+            ins = DoClusters("308322")
+            ins.run()
             """
             eatery_ids_one = [ post.get("eatery_id") for post in\
                     eateries.find({"eatery_area_or_city": "Delhi NCR"}) if\
                             reviews.find({"eatery_id": post.get("eatery_id")}).count() >= 1500]
-            """
             Instance = ClassifiyReviews(["166"], PATH_COMPILED_CLASSIFIERS)
             Instance.run()
             eatery_ids_one = [ post.get("eatery_id") for post in  eateries.find({"eatery_area_or_city": "Delhi NCR"}) if reviews.find({"eatery_id": post.get("eatery_id")}).count() >= 500]
@@ -994,9 +999,13 @@ if __name__ == "__main__":
                     if j == len(eatery_ids_one):
                         break
 
+            """
+            eatery_ids_one = [ post.get("eatery_id") for post in eateries.find({"eatery_area_or_city": "Delhi NCR"}) if reviews.find({"eatery_id": post.get("eatery_id")}).count() >= 1000]
+            for eatery_id in eatery_ids_one:
+                            ins = DoClusters(eatery_id)
+                            ins.run()
+            """     
 
-
-            """ 
             for eatery_id in eatery_ids:
                     print Terminal.green("Clustering %s"%eatery_id)
                     try:

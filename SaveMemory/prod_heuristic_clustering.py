@@ -28,9 +28,14 @@ from nltk.tag.hunpos import HunposTagger
 this_file_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(this_file_path)
 from nltk.stem.snowball import SnowballStemmer
-
+import warnings
+import blessings 
+terminal = blessings.Terminal()
 stemmer = SnowballStemmer("english")
 
+
+def print_warnings(string):
+        return warnings.warn(terminal.yellow(str(string)))
 
 def encoding_helper(__object):
         if isinstance(__object, unicode):
@@ -161,7 +166,8 @@ class ProductionHeuristicClustering:
 
 
 
-                print self.list_to_exclude
+                
+                print_warnings("List that will be excludedfrom the nps is %s"%self.list_to_exclude)
 
 
                 self.dropped_nps = list()
@@ -194,7 +200,9 @@ class ProductionHeuristicClustering:
                 excluded_nps = [e for e in __result if e.get("total_sentiments") <=1]
 
                 
-                print "The np which have been discarded because of low frequency is %s"%(len(__result) - len(result))
+                print_warnings("The np which have been\
+                        discarded because of low frequency is\
+                        %s"%(len(__result) - len(result)))
                
                 return {"nps": result, 
                         "excluded_nps": excluded_nps, #which had total_sentiemnts less than 1 
@@ -238,17 +246,19 @@ class ProductionHeuristicClustering:
                                 
                                 __list = [pos_tag for (np, pos_tag) in nltk.pos_tag(nltk.wordpunct_tokenize(__np.encode("ascii", "ignore")))]
                                 if __np in self.list_to_exclude:
-                                        print "This will be fucking dropped <<%s>>"%__np
-                                        print nltk.pos_tag(nltk.wordpunct_tokenize(__np))
+                                        print_warnings("This will be fucking dropped <<%s>>"%__np)
+                                        print_warnings(nltk.pos_tag(nltk.wordpunct_tokenize(__np)))
                                         self.dropped_nps.append(__np)
                                
                                 elif not set.intersection(set(["NN", "NNS"]), set(__list)):
-                                        print "This will be fucking dropped because of no presence of NNS and NN <<%s>>"%__np
-                                        print nltk.pos_tag(nltk.wordpunct_tokenize(__np))
+                                        warnings.warn(terminal.yellow("This\
+                                                will be fucking dropped because\
+                                                no presence of NNS and NN\
+                                                <<%s>>"%__np))
+                                        print_warnings(nltk.pos_tag(nltk.wordpunct_tokenize(__np)))
                                         self.dropped_nps.append(__np)
 
                                 elif bool(set.intersection(set(__np.split(" ")),  set(self.list_to_exclude))):
-                                        print "This will be dropped because of the list to exclude match in np <<%s>>"%__np
                                         self.dropped_nps.append(__np)
                                         
                         

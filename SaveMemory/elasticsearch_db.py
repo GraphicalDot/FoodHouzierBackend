@@ -13,6 +13,7 @@ Dated: 9 June, 2015
 import requests
 import time
 import os
+from os.path import dirname, abspath
 import sys
 from itertools import ifilter
 from compiler.ast import flatten
@@ -26,10 +27,18 @@ NUMBER_OF_DOCS = 10
 #curl -XGET "http://192.168.1.4:9200/food/_analyze?analyzer=custom_analyzer&pretty=1" -d "cheesecake"
 
 
-from configs import ES_CLIENT, ELASTICSEARCH_IP, r_eateries, bcolors, eateries
+file_name = dirname(dirname(abspath(__file__)))
+sys.path.append(file_name)
+from configs import ES_CLIENT, ELASTICSEARCH_IP, r_eateries, bcolors, eateries, reviews
 
 Terminal = blessings.Terminal()
-
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("Elasticsearch_db")
+ch = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s- %(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
 
 
 
@@ -272,42 +281,50 @@ class ElasticSearchScripts(object):
                 """
                 if renew_indexes:
                         self.prep_food_index()
-                        
+                        logging.info("Deleting index <<ambience>>")
                         print "{0}Deleting INDEX=<<ambience>> {1}".format(bcolors.FAIL, bcolors.RESET)
                         try:
                                 ES_CLIENT.indices.delete(index="ambience")
-                        except Exception as e:
-                                print e
+                        except Exception, e:
+                                logging.error("Error in deleting ambience index", exc_info=True)
                         
+                        logging.info("Deleting index <<cost>>")
                         print "{0}Deleting INDEX=<<cost>> {1}".format(bcolors.FAIL, bcolors.RESET)
                         try:
                                 ES_CLIENT.indices.delete(index="cost")
-                        except Exception as e:
-                                print e
+                        except Exception, e:
+                                logging.error("Error in deleting cost index", exc_info=True)
                         
                         
+                        logging.info("Deleting index <<service>>")
                         print "{0}Deleting INDEX=<<service>> {1}".format(bcolors.FAIL, bcolors.RESET)
                         try:
                                 ES_CLIENT.indices.delete(index="service")
-                        except Exception as e:
+                        except Exception, e:
+                                logging.error("Error in deleting service index", exc_info=True)
                                 print e
                         
+                        logging.info("Deleting index <<eatery>>")
                         print "{0}Deleting INDEX=<<eatery>> {1}".format(bcolors.FAIL, bcolors.RESET)
                         try:
                                 ES_CLIENT.indices.delete(index="eatery")
-                        except Exception as e:
-                                print e
+                        except Exception, e:
+                                logging.error("Error in deleting eatery index", exc_info=True)
 
+                        logging.info("Creating index <<eatery>>")
                         print "{0}Creating INDEX=<<ambience>> {1}".format(bcolors.OKGREEN, bcolors.RESET)
                         self.prep_ambience_index()
                         
+                        logging.info("Creating index <<cost>>")
                         print "{0}Creating INDEX=<<cost>> {1}".format(bcolors.OKGREEN, bcolors.RESET)
                         self.prep_cost_index()
                         
+                        logging.info("Creating index <<service>>")
                         print "{0}Creating INDEX=<<service>> {1}".format(bcolors.OKGREEN, bcolors.RESET)
                         self.prep_service_index()
                         
                         
+                        logging.info("Creating index <<eatery>>")
                         print "{0}Creating INDEX=<<eatery>> {1}".format(bcolors.OKGREEN, bcolors.RESET)
                         self.prep_eatery_index()
                 return 
@@ -324,6 +341,7 @@ class ElasticSearchScripts(object):
             
                 ES_CLIENT.indices.create(index="eatery", body=self.settings)
                 ES_CLIENT.indices.put_mapping(index="eatery", doc_type="eatery", body = self.eatery_mappings)
+                logging.info("Mappings updated for index  <<eatery>>")
                 print "{0}Mappings updated for  {1}  {2}".format(bcolors.OKGREEN, "eatery",  bcolors.RESET)
                 ##Inserting cusines names into cuisines index
                 cuisines_list = list()
@@ -335,17 +353,19 @@ class ElasticSearchScripts(object):
                                 cuisines_list.extend(eatery_cuisine_split)
                                                                  
                         except Exception as e:       
-                                print e, "In finding cusines"
+                                logging.error("Error in finding cuisine", exc_info=True)
                                 pass
                 __cuisines_list = [e.replace("Quick", "").replace("Bites", "").replace("Cuisines:", "").lstrip()  for e in set(cuisines_list)]
 
 
                 for cuisine in __cuisines_list:
-                                print "Updating cuisine %s"%cuisine
+                                logging.info("Updating cuisine <<%s>>"%cuisine)
                                 ES_CLIENT.index(index="eatery", doc_type="cuisines", body={"name": cuisine})
 
                 
+                logging.info("Mappings updated for index <<eatery>> type <<menu>>")
                 ES_CLIENT.indices.put_mapping(index="eatery", doc_type="menu", body = {"menu": self.other_mappings })
+                logging.info("Mappings updated for index <<eatery>> type <<overall>>")
                 ES_CLIENT.indices.put_mapping(index="eatery", doc_type="overall", body = {"overall": self.other_mappings })
                 
                 return 
@@ -357,14 +377,14 @@ class ElasticSearchScripts(object):
                 #for __sub_category in json.loads(config.get("categories", "ambience_tags")):
                 for __sub_category in ambience_tags:
                                 ES_CLIENT.indices.put_mapping(index="ambience", doc_type=__sub_category, body = {__sub_category: self.other_mappings })
-                                print "{0}Mappings updated for  {1}  {2}".format(bcolors.OKGREEN, __sub_category, bcolors.RESET)
+                                logging.info("Mappings updated for index <<ambience>>")
             
         def prep_cost_index(self):
                 ES_CLIENT.indices.create(index="cost")
                 #for __sub_category in json.loads(config.get("categories", "cost_tags")):
                 for __sub_category in cost_tags:
                                 ES_CLIENT.indices.put_mapping(index="cost", doc_type=__sub_category, body = {__sub_category: self.other_mappings })
-                                print "{0}Mappings updated for {1} {2}".format(bcolors.OKGREEN, __sub_category, bcolors.RESET)
+                                logging.info("Mappings updated for index <<cost>> , type <<%s>>"%__sub_category)
         
             
         def prep_service_index(self):
@@ -372,7 +392,7 @@ class ElasticSearchScripts(object):
                 #for __sub_category in json.loads(config.get("categories", "service_tags")):
                 for __sub_category in service_tags:
                                 ES_CLIENT.indices.put_mapping(index="service", doc_type=__sub_category, body = {__sub_category: self.other_mappings })
-                                print "{0}Mappings updated for {1} {2}".format(bcolors.OKGREEN, __sub_category, bcolors.RESET)
+                                logging.info("Mappings updated for index <<service>> , type <<%s>>"%__sub_category)
 
         def prep_food_index(self):
                 """
@@ -386,17 +406,15 @@ class ElasticSearchScripts(object):
                 """
                 try:
                         ES_CLIENT.indices.delete(index="food")
-                        print "{0} DELETING Index=<<food>>{1}".format(bcolors.OKGREEN, bcolors.RESET)
-                except Exception as e:
-                        print "{0} {1}".format(bcolors.FAIL, bcolors.RESET)
-                        print "{0} Index Food doesnt exists {1}".format(bcolors.FAIL, bcolors.RESET)
-                        print e
+                        logging.info("Deleting index food")
+                except Exception, e:
+                        logging.error("Error in deleting FOOD index", exc_info=True)
 
 
 
-                print "{0}Settings updated {1}".format(bcolors.OKGREEN, bcolors.RESET)
 
                 ES_CLIENT.indices.create(index="food", body=self.settings)
+                logging.info("food index settings updated")
                 __mappings = {'dishes': {'_all': {'enabled': True},
                           'properties': {
                                    # 'dish_phonetic': {'analyzer': 'phonetic_analyzer', 'type': 'string'},
@@ -447,14 +465,15 @@ class ElasticSearchScripts(object):
 
                 try:
                         ES_CLIENT.indices.put_mapping(index="food", doc_type="dishes", body = __mappings)
+                        logging.info("MAppings updated for index <<food>> and type <<dishes>>")
                         
                         ##also overall-food mapings should also be there
                         ES_CLIENT.indices.put_mapping(index="food", doc_type="overall-food", body = {"overall-food": self.other_mappings})
-                        print "{0}Mappings updated {1}".format(bcolors.OKGREEN, bcolors.RESET)
+                        logging.info("MAppings updated for index <<food>> and type <<overall>>")
                 
                 
-                except Exception as e:
-                        print "{0}Mappings update Failed with error {1} {2}".format(bcolors.FAIL, e, bcolors.RESET)
+                except Exception, e:
+                        logging.error("Error in updateing FOOD index type mapping", exc_info=True)
 
 
                 """
@@ -517,19 +536,20 @@ class ElasticSearchScripts(object):
 
                 """
 
-                print "starting inserting eateryid %s"%eatery_id
+                logging.info("starting inserting eateryid %s"%eatery_id)
                 delete_body = {
                             "query" : {
                                         "term" : { "eatery_id" : eatery_id }
                                     }
                             }
 
+                
                 #https://people.mozilla.org/~wkahngreene/elastic/guide/reference/api/delete-by-query.html
                 try:
                         ES_CLIENT.delete_by_query(index="_all", body=delete_body, consistency="quorum")
-                except Exception as e:
-                        print "{0}Error occurred while deleting all the entries for the eatery_id {1}{2}".format(\
-                                bcolors.FAIL, eatery_id, bcolors.RESET)
+                        logging.info("Previous index for eateryid %s delted"%eatery_id)
+                except Exception, e:
+                        logging.error("Error in deleting eatery_id %s"%eatery_id, exc_info=True)
                 
                 
                 #Elasticsearch refreshes every index at an interval of 1 second, We need to
@@ -559,10 +579,17 @@ class ElasticSearchScripts(object):
                 try:
                         latitude, longitude = eatery_dict.pop("eatery_longitude_latitude")
                         latitude, longitude = float(latitude), float(longitude)
+                        logging.info("""latitude <<%s>> and longitude <<%s>>
+                        found in eatery_id %s"""(latitude, longitude,
+                            eatery_id))
                 except Exception as e:
-                        print "eatery_longitude_latitude key not present, tying location"
+                        logging.error("""eatery_longitude_latitude key not
+                                present in  eatery_id %s"""%eatery_id, exc_info=True)
                         latitude, longitude = eatery_dict.pop("location")
                         latitude, longitude = float(latitude), float(longitude)
+                        logging.info("""latitude <<%s>> and longitude <<%s>>
+                        found in eatery_id %s"""%(latitude, longitude,
+                            eatery_id))
                         
                 eatery_address = eatery_dict["eatery_address"]
                 eatery_address_split = eatery_address.replace(" ", "").split(",")
@@ -586,7 +613,6 @@ class ElasticSearchScripts(object):
                                 "eatery_address": eatery_dict["eatery_address"]})
 
 
-                print eatery
                 l = ES_CLIENT.index(index="eatery", doc_type="eatery", body=eatery_dict)
                 l = ES_CLIENT.index(index="eatery", doc_type="menu", body=menu_data)
                 l = ES_CLIENT.index(index="eatery", doc_type="overall", body=overall_data)
@@ -1110,12 +1136,16 @@ class ElasticSearchScripts(object):
 
 
 if __name__ == "__main__":
-            #ElasticSearchScripts(renew_indexes=True)
+            ElasticSearchScripts(renew_indexes=True)
             """
             for post in r_eateries.find():
                     __id = post.get("eatery_id")
             #for __id in [u'310159', u'307852', u'312114', u'18198477', u'18146368', u'17979576', u'306787', u'8234', u'309243', u'311835', u'313058', u'307853', u'17989123', u'17953918', u'18017241', u'307931', u'8893', u'303095', u'9354', u'4412', u'310094', u'9321', u'303092', u'5591', u'301001', u'301442', u'5732', u'5030', u'301131', u'4899', u'308322', u'8369', u'7070', u'305137', u'307360', u'8910', u'309792', u'308463', u'307330', u'306334', u'307454', u'91', u'304027', u'3392', u'2664', u'307146', u'308642', u'311182', u'310846', u'310396', u'8873', u'305681', u'18082196', u'312437', u'313384', u'304676']:
             """
-            ElasticSearchScripts.insert_eatery("310078")
+            eatery_ids_one = [ post.get("eatery_id") for post in \
+                    eateries.find({"eatery_area_or_city": "Delhi NCR"}) if\
+                    reviews.find({"eatery_id": post.get("eatery_id")}).count() >= 1000]
+            for eatery_id in eatery_ids_one:
+                    ElasticSearchScripts.insert_eatery(eatery_id)
 
 
