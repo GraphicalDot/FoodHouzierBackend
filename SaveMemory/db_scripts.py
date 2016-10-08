@@ -95,6 +95,7 @@ class MongoScriptsReviews(object):
                 print r_eateries.remove({"eatery_id": eatery_id})
                 print r_reviews.remove({"eatery_id": eatery_id})
                 print r_clip_eatery.remove({"eatery_id": eatery_id})
+                print "Eatery that was flushes has eatery id %s"%eatery_id
                 return 
 
 

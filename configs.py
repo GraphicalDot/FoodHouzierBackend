@@ -115,7 +115,8 @@ reviews_data = dict(
         users = "ZomatoUsers",
 )
 
-reviews_connection = pymongo.MongoClient(reviews_data["ip"], reviews_data["port"])
+reviews_connection = pymongo.MongoClient(reviews_data["ip"], 
+        reviews_data["port"],  maxPoolSize=None, connect=False)
 reviews = reviews_connection[reviews_data["db"]][reviews_data["reviews"]]
 eateries = reviews_connection[reviews_data["db"]][reviews_data["eateries"]]
 
@@ -129,7 +130,8 @@ results_data = dict(
         junk_nps = "junk_nps",
         )
 
-result_connection = pymongo.MongoClient(results_data["ip"], results_data["port"])
+result_connection = pymongo.MongoClient(results_data["ip"], 
+        results_data["port"],  maxPoolSize=None, connect=False)
 r_reviews = result_connection[results_data["db"]][results_data["reviews"]]
 r_eateries = result_connection[results_data["db"]][results_data["eateries"]]
 r_clip_eatery=result_connection[results_data["db"]][results_data["clipped_eatery"]]
@@ -171,6 +173,13 @@ debug = dict(
         execution_time = True,
         print_docs = False,
     )
+
+
+celery_backend = dict(
+        ip ="localhost",
+        port=27017
+        
+        )
 
 
 

@@ -27,6 +27,9 @@ from compiler.ast import flatten
 from collections import Counter
 from itertools import groupby
 from operator import itemgetter
+import blessings
+
+Terminal = blessings.Terminal()
 
 parentdir= dirname(dirname(abspath(__file__)))
 sys.path.append(parentdir)
@@ -118,31 +121,34 @@ class ProcessingWorker(celery.Task):
 	acks_late=True
 	default_retry_delay = 5
         
-        def run(self, __eatery_id, path):
+        def run(self, eatery_id, path):
                 """
                 celery -A ProcessingCeleryTask  worker -n ProcessingWorker -Q ProcessingWorkerQueue --concurrency=4 -P gevent  --loglevel=info --autoreload
+                celery -A ProcessingCeleryTask  worker -n ProcessingWorker -Q
+                ProcessingWorkerQueue   --loglevel=info --autoreload -Ofair -c
+                1
                 """
                 self.start = time.time()
 	       
-                print __eatery_id
+                print eatery_id
                 instance = ClassifyReviews([eatery_id], path)
                 instance.run()
                 #return group(callback.clone([arg, __eatery_id]) for arg in __review_list)()
         
         def after_return(self, status, retval, task_id, args, kwargs, einfo):
 		#exit point of the task whatever is the state
-		logger.info("{color} Ending --<{function_name}--> of task --<{task_name}>-- with time taken\
-                        --<{time}>-- seconds  {reset}".format(color=bcolors.OKBLUE,\
-                        function_name=inspect.stack()[0][3], task_name= self.__class__.__name__, 
-                            time=time.time() -self.start, reset=bcolors.RESET))
+		print Terminal.yellow("""Ending --<<{function_name}>> of task
+                        --<<task_name>>--""".format(function_name
+                            = inspect.stack()[0][3],
+                            task_name=self.__class__.__name__))
+                
 		pass
 
 	def on_failure(self, exc, task_id, args, kwargs, einfo):
-		print args
-                logger.info("{color} Ending --<{function_name}--> of task --<{task_name}>-- failed fucking\
-                        miserably {reset}".format(color=bcolors.OKBLUE,\
-                        function_name=inspect.stack()[0][3], task_name= self.__class__.__name__, reset=bcolors.RESET))
-                logger.info("{0}{1}".format(einfo, bcolors.RESET))
+		print Terminal.red("""Error --<<{function_name}>> of task
+                        --<<task_name>>-- failed""".format(function_name
+                            = inspect.stack()[0][3],
+                            task_name=self.__class__.__name__))
 		self.retry(exc=exc)
 
 

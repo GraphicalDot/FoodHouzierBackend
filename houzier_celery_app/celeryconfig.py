@@ -39,7 +39,7 @@ parent_dir = os.path.dirname(file_path)
 sys.path.append(parent_dir)
 print parent_dir
 os.chdir(parent_dir)
-from configs import redis_config
+from configs import redis_config, celery_backend
 os.chdir(file_path)
 
 
@@ -62,7 +62,6 @@ CELERY_ROUTES = {
                         },		
 		
                         }
-"""
 #Celery result backend settings, We are using monngoodb to store the results after running the tasks through celery
 CELERY_RESULT_BACKEND = 'mongodb'
 
@@ -70,15 +69,12 @@ CELERY_RESULT_BACKEND = 'mongodb'
 #the same server
 
 CELERY_MONGODB_BACKEND_SETTINGS = {
-		'host':  config.get("celeryresults", "ip"),
-		'port':  config.getint("celeryresults", "port"),
+		'host':  celery_backend["ip"],
+		'port':  celery_backend["port"],
 		'database': 'celery',
-#		'user': '',
-#		'password': '',
 		'taskmeta_collection': 'celery_taskmeta',
 			}
 
-"""
 
 CELERYD_POOL_RESTARTS = True
 #How many messages to prefetch at a time multiplied by the number of concurrent processes. The default is 4 
@@ -87,8 +83,8 @@ CELERYD_POOL_RESTARTS = True
 #start will receive four times the number of messages initially. Thus the tasks may not be fairly distributed 
 #to the workers.
 CELERYD_PREFETCH_MULTIPLIER = 1
-
-
+CELERY_CONCURRENCY = 1
+CELERY_ACKS_LATE = True
 #CELERY_RESULT_ENGINE_OPTIONS = {'echo': True}
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
