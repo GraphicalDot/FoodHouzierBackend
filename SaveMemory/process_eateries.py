@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pypy
 #-*- coding: utf-8 -*-
 """
 Author: kaali
@@ -24,7 +24,7 @@ from sklearn.externals import joblib
 from collections import Counter
 from db_scripts import MongoScriptsReviews, MongoScriptsDoClusters
 from nltk.stem import SnowballStemmer
-
+from sklearn.externals import joblib 
 from prod_heuristic_clustering import ProductionHeuristicClustering
 
 #from join_two_clusters import ProductionJoinClusters
@@ -75,72 +75,31 @@ tokenizer = PunktSentenceTokenizer()
 from topia.termextract import extract  
 from simplejson import loads
 #from google_places import google_already_present, find_google_places
+import time
 
 
-
-
-
-class EachEatery:
-        def __init__(self, eatery_id, flush_eatery=False):
-                self.eatery_id = eatery_id
-                if flush_eatery:
-                        ##when you want to process whole data again, No options other than that
-                        warnings.warn("Fushing whole atery") 
-                        MongoScriptsReviews.flush_eatery(eatery_id)
-                return 
-        
-        def return_non_processed_reviews(self, start_epoch=None, end_epoch=None):
-                """
-                case1: 
-                    Eatery is going to be processed for the first time
-
-                case 2:
-                    Eatery was processed earlier but now there are new reviews are to be processed
-
-                case 3: 
-                    All the reviews has already been processed, No reviews are left to be processed 
-                all_reviews = MongoScriptsReviews.return_all_reviews(self.eatery_id) 
-                try:
-                        ##case1: all_processed_reviews riases StandardError as there is no key in eatery result for processed_reviews
-                        all_processed_reviews = MongoScriptsReviews.get_proccessed_reviews(self.eatery_id)
-
-                except StandardError as e:
-                        warnings.warn("Starting processing whole eatery, YAY!!!!")
-                reviews_ids = list(set.symmetric_difference(set(all_reviews), set(all_processed_reviews)))
-                if reviews_ids:
-                        ##case2: returning reviews which are yet to be processed 
-                        return MongoScriptsReviews.reviews_with_text(reviews_ids)
-                
-                else:
-                        warnings.warn("{0} No New reviews to be considered for eatery id {1} {2}".format(bcolors.OKBLUE, self.eatery_id, bcolors.RESET))
-                        return list() 
-                """
-                MongoScriptsReviews.insert_eatery_into_results_collection(self.eatery_id)
-                """
-                if google:
-                        google_already_present(eatery_id, google)
-                    
-                else:
-                        find_google_places(eatery_id)
-                
-                """
-                review_ids = MongoScriptsReviews.review_ids_to_be_processed(self.eatery_id)
-                if not review_ids:
-                        print Terminal.red("No reviews are to be processed")
-               
-                
-                result = MongoScriptsReviews.reviews_with_text(review_ids, self.eatery_id)
-                print Terminal.green("Length of the review ids %s for the eatery id is %s"%(len(review_ids), self.eatery_id))
-                return result
 
 
 
 def prediction(sentences, vocabulary, features, classifier):
-        loaded_vectorizer= CountVectorizer(vocabulary=vocabulary) 
+        loaded_vectorizer= CountVectorizer(vocabulary=vocabulary)
         sentences_counts = loaded_vectorizer.transform(sentences)
         reduced_features = features.transform(sentences_counts.toarray())
         predictions = classifier.predict(reduced_features)
+
         return predictions
+ 
+
+def parallel_prediction(sentence, vocabulary, features, classifier):
+        ##No use of this as trained model lready uses joblib parallel
+        ##and you can not user nested paralle processing in python
+        ##need to shift to celery, :(
+        loaded_vectorizer= CountVectorizer(vocabulary=vocabulary)
+        sentences_counts = loaded_vectorizer.transform(sentence)
+        reduced_features = features.transform(sentences_counts.toarray())
+        prediction = classifier.predict(reduced_features)
+
+        return prediction
  
 
 class SentimentClassification(object):
@@ -151,15 +110,19 @@ class SentimentClassification(object):
         possible, I guess even of you load 10 million reviews in 240Gb ram,
         there would still be tons of memory left.
         """
-        def __init__(self, sentences):
-                with cd(SentimentClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+        def __init__(self, sentences, path):
+                with cd(SentimentClassifiersPath(path)):
                         self.features =  joblib.load(SentimentFeatureFileName)
                         self.vocabulary = joblib.load(SentimentVocabularyFileName)
                         self.classifier= joblib.load(SentimentClassifierFileName)
                 self.sentences = sentences
                 print Terminal.green("SentimentClassification loaded")
         def run(self):
+
+                print "Doing sequesntial prediction"
+                start = time.time()
                 sentiments = prediction(self.sentences, self.vocabulary, self.features, self.classifier)
+                print "Time took by sequential prediction is %s"%(time.time()- start)
                 return sentiments
 
 class TagClassification(object):
@@ -169,8 +132,8 @@ class TagClassification(object):
         return zip(eatery_ids, review_ids, sentences, review_time, sentiments)
         [(eatery_id, review_id, sentences, review_time, sentiment), ...]
         """
-        def __init__(self, sentences):
-                with cd(TagClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+        def __init__(self, sentences, path):
+                with cd(TagClassifiersPath(path)):
                         self.features =  joblib.load(TagFeatureFileName)
                         self.vocabulary = joblib.load(TagVocabularyFileName)
                         self.classifier = joblib.load(TagClassifierFileName)
@@ -184,8 +147,8 @@ class TagClassification(object):
 
 
 class ServiceClassification(object):
-        def __init__(self, sentences):        
-                with cd(ServiceClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+        def __init__(self, sentences, path):        
+                with cd(ServiceClassifiersPath(path)):
                         self.features =  joblib.load(ServiceFeatureFileName)
                         self.vocabulary = joblib.load(ServiceVocabularyFileName)
                         self.classifier= joblib.load(ServiceClassifierFileName)
@@ -198,9 +161,9 @@ class ServiceClassification(object):
                 
             
 class FoodClassification(object):
-        def __init__(self, sentences):        
+        def __init__(self, sentences, path):        
             
-                with cd(FoodClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+                with cd(FoodClassifiersPath(path)):
                         self.features =  joblib.load(FoodFeatureFileName)
                         self.vocabulary = joblib.load(FoodVocabularyFileName)
                         self.classifier= joblib.load(FoodClassifierFileName)
@@ -211,8 +174,8 @@ class FoodClassification(object):
                 result = prediction(self.sentences, self.vocabulary, self.features, self.classifier)
                 return result
 class CostClassification(object):
-        def __init__(self, sentences):        
-                with cd(CostClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+        def __init__(self, sentences, path):        
+                with cd(CostClassifiersPath(path)):
                         self.features =  joblib.load(CostFeatureFileName)
                         self.vocabulary = joblib.load(CostVocabularyFileName)
                         self.classifier= joblib.load(CostClassifierFileName)
@@ -224,8 +187,8 @@ class CostClassification(object):
                 return result
 
 class AmbienceClassification(object):
-        def __init__(self, sentences):        
-                with cd(AmbienceClassifiersPath(PATH_COMPILED_CLASSIFIERS)):
+        def __init__(self, sentences, path):        
+                with cd(AmbienceClassifiersPath(path)):
                         self.features =  joblib.load(AmbienceFeatureFileName)
                         self.vocabulary = joblib.load(AmbienceVocabularyFileName)
                         self.classifier= joblib.load(AmbienceClassifierFileName)
@@ -242,8 +205,8 @@ class AmbienceClassification(object):
 
 
 
-class ClassifiyReviews(object):
-        def __init__(self, eatery_id_list):
+class ClassifyReviews(object):
+        def __init__(self, eatery_id_list, path_compiled_classifiers):
                 self.np_extractor = extract.TermExtractor() 
                 self.eatery_id_list = eatery_id_list #list of ids 
                 
@@ -268,6 +231,7 @@ class ClassifiyReviews(object):
                                 review_time), sentences))
 
                 print "len of all sentences %s"%len(self.tokenized_reviews)
+                self.path_compiled_classifiers = path_compiled_classifiers
                 ##this will return a list of quadruple with each element will
                 ##a tokenized sentences form the review whose id is the second
                 ##element, tokenized reviews will in the form 
@@ -277,7 +241,8 @@ class ClassifiyReviews(object):
                 eatery_ids, review_ids, sentences, review_time = zip(*self.tokenized_reviews)
                 
                 ##prediction of sentiments 
-                sentiment_instance = SentimentClassification(sentences)
+                sentiment_instance = SentimentClassification(sentences,
+                        self.path_compiled_classifiers)
                 sentiments = sentiment_instance.run()
                 del sentiment_instance
                 print Terminal.green("Sentiment Instance Deleted")
@@ -304,7 +269,8 @@ class ClassifiyReviews(object):
                 ##going for food sub tag classification 
                 f_eatery_ids, f_reviews_ids, f_sentences, f_review_time, f_sentiment, \
                         f_tags = zip(*self.food) 
-                f_instance = FoodClassification(f_sentences)
+                f_instance = FoodClassification(f_sentences,
+                        self.path_compiled_classifiers)
                 f_predictions = f_instance.run()
                 del f_instance
                 print Terminal.green("Food Instance Deleted")
@@ -320,7 +286,8 @@ class ClassifiyReviews(object):
                 ##going for ambience sub tag classification 
                 a_eatery_ids, a_reviews_ids, a_sentences, a_review_time, a_sentiment, \
                         a_tags = zip(*self.ambience) 
-                a_instance = AmbienceClassification(a_sentences)
+                a_instance = AmbienceClassification(a_sentences,
+                        self.path_compiled_classifiers)
                 a_predictions = a_instance.run()
                 del a_instance
                 self.all_ambience = zip(a_reviews_ids, a_sentences, a_tags,
@@ -332,7 +299,8 @@ class ClassifiyReviews(object):
                 ##going for cost sub tag classification 
                 c_eatery_ids, c_reviews_ids, c_sentences, c_review_time, c_sentiment, \
                         c_tags = zip(*self.cost) 
-                c_instance = CostClassification(c_sentences)
+                c_instance = CostClassification(c_sentences,
+                        self.path_compiled_classifiers)
                 c_predictions = c_instance.run()
                 del c_instance
                 self.all_cost = zip(c_reviews_ids, c_sentences, c_tags,
@@ -343,7 +311,8 @@ class ClassifiyReviews(object):
                 ##going for service sub tag classification 
                 s_eatery_ids, s_reviews_ids, s_sentences, s_review_time, s_sentiment, \
                         s_tags = zip(*self.service) 
-                s_instance = ServiceClassification(c_sentences)
+                s_instance = ServiceClassification(c_sentences,
+                        self.path_compiled_classifiers)
                 s_predictions = s_instance.run()
                 del s_instance
                 self.all_service = zip(s_reviews_ids, s_sentences, s_tags,
@@ -1002,9 +971,14 @@ if __name__ == "__main__":
             (options, args) = parser.parse_args()
             PATH_COMPILED_CLASSIFIERS = options.path_compiled_classifiers
         
-            """
             eatery_ids = ["166", "309790", "308322", "834", "1626", "400", "18034053", "6127", "308637", "310078"]
             """
+            eatery_ids_one = [ post.get("eatery_id") for post in\
+                    eateries.find({"eatery_area_or_city": "Delhi NCR"}) if\
+                            reviews.find({"eatery_id": post.get("eatery_id")}).count() >= 1500]
+            """
+            Instance = ClassifiyReviews(["166"], PATH_COMPILED_CLASSIFIERS)
+            Instance.run()
             eatery_ids_one = [ post.get("eatery_id") for post in  eateries.find({"eatery_area_or_city": "Delhi NCR"}) if reviews.find({"eatery_id": post.get("eatery_id")}).count() >= 500]
             j = 5
             for i in eatery_ids_one:

@@ -159,10 +159,10 @@ training_data = dict(
 )
 
 
-celery = dict(
-        celery_redis_broker_ip = "localhost",
-        celery_redis_broker_port = 6379,
-        celery_redis_broker_db_number = 0,
+redis_config = dict(
+        ip = "localhost",
+        port = 6379,
+        db = 0,
 )
 
 debug = dict(

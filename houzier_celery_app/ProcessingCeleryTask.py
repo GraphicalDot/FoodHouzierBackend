@@ -18,6 +18,7 @@ from celery import task, group
 from sklearn.externals import joblib
 import time
 import os
+from os.path import dirname, abspath
 import sys
 import time
 import hashlib
@@ -26,6 +27,10 @@ from compiler.ast import flatten
 from collections import Counter
 from itertools import groupby
 from operator import itemgetter
+
+parentdir= dirname(dirname(abspath(__file__)))
+sys.path.append(parentdir)
+
 from SaveMemory.process_eateries import ClassifyReviews
 
 logger = logging.getLogger(__name__)
@@ -113,14 +118,14 @@ class ProcessingWorker(celery.Task):
 	acks_late=True
 	default_retry_delay = 5
         
-        def run(self, __eatery_id):
+        def run(self, __eatery_id, path):
                 """
                 celery -A ProcessingCeleryTask  worker -n ProcessingWorker -Q ProcessingWorkerQueue --concurrency=4 -P gevent  --loglevel=info --autoreload
                 """
                 self.start = time.time()
 	       
                 print __eatery_id
-                instance = ClassifyReviews([eatery_id])
+                instance = ClassifyReviews([eatery_id], path)
                 instance.run()
                 #return group(callback.clone([arg, __eatery_id]) for arg in __review_list)()
         
