@@ -46,7 +46,10 @@ from configs import r_reviews, r_eateries, r_clip_eatery
 
 from configs import cd
 import cPickle
-from ProductionEnvironmentApi.elasticsearch_db import ElasticSearchScripts
+from SaveMemory.elasticsearch_db import ElasticSearchScripts
+import HTMLParser
+html_parser = HTMLParser.HTMLParser()
+
 
 def cors(f):
         @wraps(f) # to preserve name, docstring, etc.
@@ -327,12 +330,14 @@ class TextSearch(tornado.web.RequestHandler):
                         result = list()
                         __result = ElasticSearchScripts.get_dish_match(text)
                         for dish in __result:
-                                __eatery_id = dish.get("__eatery_id")
-                                __eatery_details = r_clip_eatery.find_one({"__eatery_id": __eatery_id})
-                                for e in ["eatery_highlights", "eatery_cuisine", "eatery_trending", "eatery_id", "eatery_known_for", "eatery_type", "_id"]:
+                                eatery_id = dish.get("eatery_id")
+                                __eatery_details = r_clip_eatery.find_one({"eatery_id": eatery_id})
+                                for e in ["eatery_highlights",
+                                        "eatery_cuisine", "eatery_trending", "eatery_known_for", "eatery_type", "_id"]:
                                         try:
                                                 __eatery_details.pop(e)
                                         except Exception as e:
+                                                print e
                                                 pass
                                 dish.update({"eatery_details": __eatery_details})
                                 result.append(dish)
@@ -352,16 +357,23 @@ class TextSearch(tornado.web.RequestHandler):
 
                 elif __type == "eatery":
                        
-                            
-                            result = eateries_results_collection.find_one({"eatery_name": text})
+                            ##TODO : Some issue with the restaurant chains for example
+                            ##big chills at different locations, DOnt know why ES
+                            ##not returning multiple results
+                            ##TODO: dont know why dropped nps are still in result.
+                            result = r_eateries.find_one({"eatery_name": text},
+                                    {"_id": False, "eatery_known_for": False,
+                                        "droppped_nps": False,
+                                        "eatery_trending": False,
+                                        "eatery_highlights": False})
+                           
+                            print result.get("eatery_id")
                             __result = process_result(result)
-                            for e in ["eatery_highlights", "eatery_cuisine", "eatery_trending", "eatery_id", "eatery_known_for", "eatery_type", "_id", "processed_reviews", "old_considered_ids"]:
-                                    try:
-                                            result.pop(e)
-                                    except Exception as e:
-                                            pass
                             
+                            pictures = result.pop("pictures")
+                            result.update({"pictures": pictures[0:2]})
                             result.update(__result)
+                            result = [result]
 
                 elif not  __type:
                         print "No type defined"
@@ -374,8 +386,9 @@ class TextSearch(tornado.web.RequestHandler):
 			        })
                         self.finish()
                         return 
-                self.write({"success": False,
-			        "error": True,
+                print result
+                self.write({"success": True,
+			        "error": False,
 			        "result": result,
 			})
                 self.finish()
@@ -396,8 +409,8 @@ class Suggestions(tornado.web.RequestHandler):
                         {u'suggestions': [{u'name': u'Italian'}, {u'name': u'Cuisines:Italian'}], 'type': u'cuisine'}
                         ]
                 """
-                        
-                query = self.get_argument("query")
+                print self.request.arguments  
+                query = self.get_argument("phrase")
                 
                 dish_suggestions = ElasticSearchScripts.dish_suggestions(query)
                 cuisines_suggestions =  ElasticSearchScripts.cuisines_suggestions(query)
@@ -408,23 +421,19 @@ class Suggestions(tornado.web.RequestHandler):
                 if cuisines_suggestions:
                         cuisines_suggestions= [e.get("name") for e in cuisines_suggestions]
                 
+
                 if eatery_suggestions:
                         eatery_suggestions= [e.get("eatery_name") for e in eatery_suggestions]
 
-
-                self.write({"success": True,
-			        "error": False,
-                                "result": [{"type": "dish", "suggestions":
-                                    list(set([e.get("name") for e in dish_suggestions])) },
-                                            {"type": "eatery", "suggestions": eatery_suggestions },
-                                            {"type": "cuisine", "suggestions": cuisines_suggestions }
-                                            ],
-                                "data": {"dishes":list(set([e.get("name") for e in dish_suggestions])),
-                                        "eatery": eatery_suggestions,
-                                        "cuisine": cuisines_suggestions
-                                    
-                                    }
-                                })
+                
+                result = {"dish": [{"name": e, "type":"dish"} for e in list(set([e.get("name") for e in
+                    dish_suggestions]))] ,
+                    "eatery":  [{"name": e, "type": "eatery"} for e in
+                        eatery_suggestions],
+                    "cuisine": [{"name": e, "type": "cuisine"} for e in cuisines_suggestions], 
+                                }
+                print result
+                self.write(result)
                 self.finish()
                 return 
 
@@ -432,6 +441,15 @@ def process_result(result):
                 number_of_dishes = 20
                 dishes = sorted(result["food"]["dishes"], key=lambda x: x.get("total_sentiments"), reverse=True)[0: number_of_dishes]
                 overall_food = result["food"]["overall-food"]
+
+                def convert_to_list(_dict):
+                        _list = list()
+                        for (key, value) in _dict.iteritems():
+                                value.update({"name": key})
+                                _list.append(value)
+                        return _list
+
+
                 ambience = result["ambience"]
                 cost = result["cost"]
                 service = result["service"]
@@ -450,9 +468,9 @@ def process_result(result):
 
 
                 result = {"food": dishes,
-                            "ambience": ambience, 
-                            "cost": cost, 
-                            "service": service, 
+                            "ambience": convert_to_list(ambience), 
+                            "cost": convert_to_list(cost), 
+                            "service": convert_to_list(service), 
                             "menu": menu,
                             "overall": overall,
                             "eatery_address": result["eatery_address"],
@@ -461,6 +479,7 @@ def process_result(result):
                             }
                         
                 return result
+
 class GetEatery(tornado.web.RequestHandler):
         @cors
         @print_execution

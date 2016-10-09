@@ -1001,6 +1001,7 @@ class ElasticSearchScripts(object):
 
                 
                 result = find_exact_match(eatery_name)
+                
                 if result:
                         return result
                 else:
@@ -1060,7 +1061,8 @@ class ElasticSearchScripts(object):
 
 
                 def find_exact_match(__dish_name, number_of_dishes):
-                        exact_dish_search_body={"_source": ["name", "eatery_name", "__eatery_id", "location", "good", "poor", "average", "excellent", "terrible", "total_sentiments", "eatery_address"],
+                        exact_dish_search_body={"_source": ["name",
+                            "eatery_name", "__eatery_id", "eatery_id", "location", "good", "poor", "average", "excellent", "terrible", "total_sentiments", "eatery_address"],
                                     "query":{
                                             "term":{
                                                         "dish_raw":  __dish_name}},
@@ -1079,7 +1081,8 @@ class ElasticSearchScripts(object):
 
                 def find_fuzzy_match(__dish_name, number_of_dishes):
                         print "Fussy match for %s"%__dish_name
-                        fuzzy_search_body = {"_source": ["name", "eatery_name", "__eatery_id", "location", "good", "poor", "average", "excellent", "terrible", "total_sentiments", "eatery_address"],
+                        fuzzy_search_body = {"_source": ["name", "eatery_name",
+                            "eatery_id", "__eatery_id", "location", "good", "poor", "average", "excellent", "terrible", "total_sentiments", "eatery_address"],
                                 "query": {
                                     "fuzzy_like_this": {
                                             "fields": ["dish_shingle", "dish_raw"],
@@ -1100,7 +1103,8 @@ class ElasticSearchScripts(object):
 
 
                 def find_standard_match(__dish_name, number_of_dishes):
-                        standard_search_body = {"_source": ["name", "eatery_name", "__eatery_id", "location", "good", "poor", "average", "excellent", "terrible", "total_sentiments", "eatery_address"],
+                        standard_search_body = {"_source": ["name",
+                        "eatery_id", "eatery_name", "__eatery_id", "location", "good", "poor", "average", "excellent", "terrible", "total_sentiments", "eatery_address"],
                                 "query": {
                                     "match": {
                                             "name": {
@@ -1127,7 +1131,6 @@ class ElasticSearchScripts(object):
                         print "There is no exact result matching the Query %s"%__dish_name
                 
                 result = find_fuzzy_match(__dish_name, number_of_dishes)
-                
                 if result:
                         return result
                 
