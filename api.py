@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pypy
 from datetime import date
 import tornado.escape
 import tornado.ioloop
@@ -363,7 +363,6 @@ class TextSearch(tornado.web.RequestHandler):
                             
                             result.update(__result)
 
-
                 elif not  __type:
                         print "No type defined"
 
@@ -415,11 +414,17 @@ class Suggestions(tornado.web.RequestHandler):
 
                 self.write({"success": True,
 			        "error": False,
-                                "result": [{"type": "dish", "suggestions": [e.get("name") for e in dish_suggestions] },
+                                "result": [{"type": "dish", "suggestions":
+                                    list(set([e.get("name") for e in dish_suggestions])) },
                                             {"type": "eatery", "suggestions": eatery_suggestions },
                                             {"type": "cuisine", "suggestions": cuisines_suggestions }
-                                            ]
-			        })
+                                            ],
+                                "data": {"dishes":list(set([e.get("name") for e in dish_suggestions])),
+                                        "eatery": eatery_suggestions,
+                                        "cuisine": cuisines_suggestions
+                                    
+                                    }
+                                })
                 self.finish()
                 return 
 
