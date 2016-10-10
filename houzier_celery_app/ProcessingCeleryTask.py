@@ -124,15 +124,18 @@ class ProcessingWorker(celery.Task):
         def run(self, eatery_id, path):
                 """
                 celery -A ProcessingCeleryTask  worker -n ProcessingWorker -Q ProcessingWorkerQueue --concurrency=4 -P gevent  --loglevel=info --autoreload
-                celery -A ProcessingCeleryTask  worker -n ProcessingWorker -Q
-                ProcessingWorkerQueue   --loglevel=info --autoreload -Ofair -c
-                1
+                celery -A ProcessingCeleryTask  worker -n ProcessingWorker -Q ProcessingWorkerQueue   --loglevel=info --autoreload -Ofair -c 1
                 """
                 self.start = time.time()
-	       
-                print eatery_id
-                instance = ClassifyReviews([eatery_id], path)
-                instance.run()
+	        print type(eatery_id) 
+                if type(eatery_id) == list:
+                        instance = ClassifyReviews(eatery_id, path)
+                        instance.run()
+                else: 
+                        instance = ClassifyReviews([eatery_id], path)
+                        instance.run()
+                
+                
                 #return group(callback.clone([arg, __eatery_id]) for arg in __review_list)()
         
         def after_return(self, status, retval, task_id, args, kwargs, einfo):

@@ -210,13 +210,21 @@ class ClassifyReviews(object):
         def __init__(self, eatery_id_list, path_compiled_classifiers):
                 self.np_extractor = extract.TermExtractor() 
                 self.eatery_id_list = eatery_id_list #list of ids 
-                
+
+                print "List of eateries id given for procesing %s"%self.eatery_id_list
                 self.review_list = list()
                 for eatery_id in self.eatery_id_list:
-                        warnings.warn("Fushing whole atery") 
-                        MongoScriptsReviews.flush_eatery(eatery_id)
-                        MongoScriptsReviews.insert_eatery_into_results_collection(eatery_id)
-                        self.review_list.extend([(eatery_id, post.get("review_id"), post.get("review_text"),
+                        ##this checks if the eatery has already been processed
+                        ##before or not, if yes exists
+                        ##it also takes care of half processed eatery
+                        if r_reviews.find({"eatery_id": eatery_id}).count() == reviews.find({"eatery_id": eatery_id}).count():
+                                print "eatery id %s has already been processed"%(eatery_id)                
+                                pass 
+                        else:    
+                                warnings.warn("Fushing whole atery") 
+                                MongoScriptsReviews.flush_eatery(eatery_id)
+                                MongoScriptsReviews.insert_eatery_into_results_collection(eatery_id)
+                                self.review_list.extend([(eatery_id, post.get("review_id"), post.get("review_text"),
                                 post.get("review_time")) for post in
                                 reviews.find({"eatery_id": eatery_id})])
 
@@ -239,6 +247,13 @@ class ClassifyReviews(object):
                 ##(eatery_id, review_id, sentence, review_time)
 
         def run(self):
+                ##This checks with tokenized review is empty exit the script
+                ##which implies that all the eatery_ids present in the 
+                ##self.eatery_id_list has already been processed 
+                if not bool(self.tokenized_reviews):
+                        print """eateries has already been processed
+                        %s"""%self.eatery_id_list
+                        return 
                 eatery_ids, review_ids, sentences, review_time = zip(*self.tokenized_reviews)
                 
                 ##prediction of sentiments 
@@ -320,7 +335,6 @@ class ClassifyReviews(object):
                         s_sentiment, s_predictions, s_review_time)
                 print Terminal.green("Service Instance Deleted")
                 time.sleep(10)
-
 
                         
 
@@ -419,6 +433,16 @@ class ClassifyReviews(object):
                                 {"$push": {"cuisine_result": cuisine_name}},
                                 upsert=False)
                         
+                ##updating all eateries in the eatery_ids_list to be updated as 
+                ##done 
+                ##The start of the script checks for the eateries thats has
+                #processed reviews equal to non processed reviews, also one more
+                #check is to update eatery with done key to reflect that it has
+                #been processed before and there is no need to process it again.
+                
+                for eatery_id in self.eatery_ids_list:
+                            r_eateries.update({"eatery_id": eatery_id}, 
+                                    {"$set": {"done": True}}, upsert=False)
                         
                 return 
 
