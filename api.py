@@ -372,6 +372,7 @@ class TextSearch(tornado.web.RequestHandler):
                             
                             pictures = result.pop("pictures")
                             result.update({"pictures": pictures[0:2]})
+                            
                             result.update(__result)
                             result = [result]
 
@@ -439,7 +440,21 @@ class Suggestions(tornado.web.RequestHandler):
 
 def process_result(result):
                 number_of_dishes = 20
+                def percent_positive(positive, negative, neutral):
+                        total = positive+neutral+negative
+                        return positive*100/total
+                
+                #dishes = sorted(result["food"]["dishes"], key=lambda x: x.get("total_sentiments"), reverse=True)[0: number_of_dishes]
+                """
+                dishes  = [(post.get("name"),
+                                               percent_positive(post.get("positive"),
+                                               post.get("negative"),
+                                               post.get("neutral"))) for post
+                                  in result["food"]["dishes"]]
+                """
                 dishes = sorted(result["food"]["dishes"], key=lambda x: x.get("total_sentiments"), reverse=True)[0: number_of_dishes]
+
+                
                 overall_food = result["food"]["overall-food"]
 
                 def convert_to_list(_dict):
@@ -462,21 +477,81 @@ def process_result(result):
                 [value.pop("timeline") for (key, value) in service.iteritems()]
                 overall.pop("timeline")
                 menu.pop("timeline")
-                [element.pop("timeline") for element in dishes]
-                [element.pop("similar") for element in dishes]
+                #[element.pop("timeline") for element in dishes]
+                #[element.pop("similar") for element in dishes]
 
 
 
-                result = {"food": dishes,
-                            "ambience": convert_to_list(ambience), 
-                            "cost": convert_to_list(cost), 
-                            "service": convert_to_list(service), 
-                            "menu": menu,
-                            "overall": overall,
-                            "eatery_address": result["eatery_address"],
+                dishes_result  = [(post.get("name"),
+                                               post.get("positive"),
+                                               post.get("negative"),
+                                               post.get("neutral")) for post in
+                                  dishes]
+                            
+                name, positive, negative, neutral= zip(*dishes_result)
+                result.update({"food": {"name": name, "positive":
+                                                    positive, "negative":
+                                                    negative, "neutral": neutral}})
+
+                ambience_result  = [(post.get("name"),
+                                               post.get("positive"),
+                                               post.get("negative"),
+                                               post.get("neutral")) for post in
+                                  convert_to_list(ambience) if
+                                    post.get("name").split("-")[-1] != "null"]
+                            
+                name, positive, negative, neutral = zip(*ambience_result)
+                result.update({"ambience": {"name": name, "positive":
+                                                    positive, "negative":
+                                                    negative, "neutral": neutral}})
+
+                cost_result  = [(post.get("name"),
+                                               post.get("positive"),
+                                               post.get("negative"),
+                                               post.get("neutral")) for post in
+                                  convert_to_list(cost) if
+                                post.get("name").split("-")[-1] != "null"]
+                            
+                name, positive, negative, neutral = zip(*cost_result)
+                result.update({"cost": {"name": name, "positive":
+                                                    positive, "negative":
+                                                    negative, "neutral": neutral}})
+
+                service_result  = [(post.get("name"),
+                                               post.get("positive"),
+                                               post.get("negative"),
+                                               post.get("neutral")) for post in
+                                  convert_to_list(service) if
+                                   post.get("name").split("-")[-1] != "null"]
+                            
+                name, positive, negative, neutral = zip(*service_result)
+                result.update({"service": {"name": name, "positive":
+                                                    positive, "negative":
+                                                    negative, "neutral": neutral}})
+
+
+                menu_overall = [
+                    {"name": "menu", "positive": menu.get("positive"),
+                     "negative": menu.get("negative"), "neutral": menu.get("neutral")}, 
+                    {"name": "overall", "positive": overall.get("positive"),
+                     "negative": overall.get("negative"), "neutral":
+                     overall.get("neutral")}]
+
+                menu_overall_result  = [(post.get("name"),
+                                               post.get("positive"),
+                                               post.get("negative"),
+                                               post.get("neutral")) for post in
+                                  menu_overall]
+                            
+                name, positive, negative, neutral = zip(*menu_overall_result)
+                result.update({"menu_overall": {"name": name, "positive":
+                                                    positive, "negative":
+                                                    negative, "neutral": neutral}})
+
+                result.update({"eatery_address": result["eatery_address"],
                             "eatery_name": result["eatery_name"],
                             "__eatery_id": result["__eatery_id"]
-                            }
+                               })
                         
                 return result
 
