@@ -498,7 +498,8 @@ def process_result(result):
                                                post.get("negative"),
                                                post.get("neutral")) for post in
                                   convert_to_list(ambience) if
-                                    post.get("name").split("-")[-1] != "null"]
+                                    post.get("name").split("-")[-1] != "null"
+                                    and post.get("total_sentiments") != 0]
                             
                 name, positive, negative, neutral = zip(*ambience_result)
                 result.update({"ambience": {"name": name, "positive":
@@ -510,8 +511,8 @@ def process_result(result):
                                                post.get("negative"),
                                                post.get("neutral")) for post in
                                   convert_to_list(cost) if
-                                post.get("name").split("-")[-1] != "null"]
-                            
+                                post.get("name").split("-")[-1] != "null"
+                                    and post.get("total_sentiments") != 0]
                 name, positive, negative, neutral = zip(*cost_result)
                 result.update({"cost": {"name": name, "positive":
                                                     positive, "negative":
@@ -522,7 +523,8 @@ def process_result(result):
                                                post.get("negative"),
                                                post.get("neutral")) for post in
                                   convert_to_list(service) if
-                                   post.get("name").split("-")[-1] != "null"]
+                                   post.get("name").split("-")[-1] != "null"
+                                    and post.get("total_sentiments") != 0]
                             
                 name, positive, negative, neutral = zip(*service_result)
                 result.update({"service": {"name": name, "positive":
